@@ -9,6 +9,8 @@
 - User repository for pending account creation and identity lookups.
 - One-time linking codes stored as hashes, expiring after ten minutes, and consumed transactionally.
 - Admin status-change service requiring an active admin and recording an audit event.
+- Admin-only `PATCH /admin/users/:userId/status` endpoint for activating or suspending other accounts.
+- One-time operator-run initial administrator bootstrap command that refuses to run once any admin role exists.
 
 ## Account API foundation
 - `POST /auth/register`: creates a pending user account. Passwords are hashed with scrypt; users cannot self-assign an admin role.
@@ -20,12 +22,11 @@
 - Keep bearer tokens private. Use HTTPS in any deployed environment and never place tokens in URLs or logs.
 
 ## Required before this phase is complete
-- Build an authenticated account surface that issues linking codes only to the account owner. The issuance function must never be exposed as an unauthenticated endpoint.
-- Add a reviewed migration runner and verify migrations against a disposable PostgreSQL database.
-- Add admin-only activation/suspension routes or commands with authorization tests.
+- Verify all migrations against a disposable PostgreSQL database and add an automated database integration test job.
+- Add HTTP-level authorization tests for admin activation/suspension routes and verify them against a database-backed test fixture.
 - Add per-user and per-chat rate limits to Telegram handlers.
 - Add end-to-end tests against a disposable PostgreSQL database.
-- Define secure initial admin provisioning; ordinary user creation cannot grant admin role.
+- Run the initial admin bootstrap command only from a trusted operator shell after the first account has registered. Set `BOOTSTRAP_ADMIN_EMAIL` only for that command, then remove it.
 - Ensure logs and audit metadata never include bot tokens, exchange credentials, or raw authentication challenges.
 
 ## Security rules
