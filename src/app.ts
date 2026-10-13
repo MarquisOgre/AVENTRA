@@ -146,7 +146,9 @@ export function buildApp(options: AppOptions): FastifyInstance {
     }
   });
 
-  app.patch("/admin/users/:userId/status", async (request, reply) => {
+  app.patch("/admin/users/:userId/status", {
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+  }, async (request, reply) => {
     if (!options.databasePool) return databaseUnavailable(reply);
     const token = bearerToken(request.headers.authorization);
     if (!token) return reply.code(401).send({ error: "unauthorized" });
