@@ -1,4 +1,3 @@
-import pino from "pino";
 import { afterEach, describe, expect, it } from "vitest";
 import { buildApp } from "./app.js";
 
@@ -10,7 +9,6 @@ afterEach(async () => {
 
 function makeApp() {
   const app = buildApp({
-    logger: pino({ level: "silent" }),
     appName: "AVENTRA",
     tradingMode: "simulation",
   });
