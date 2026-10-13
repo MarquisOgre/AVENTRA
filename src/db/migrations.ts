@@ -1,12 +1,9 @@
 import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import type { Pool } from "pg";
 
-const DEFAULT_MIGRATIONS_DIRECTORY = fileURLToPath(
-  new URL("../../db/migrations/", import.meta.url),
-);
+const DEFAULT_MIGRATIONS_DIRECTORY = join(process.cwd(), "db", "migrations");
 
 interface MigrationFile {
   name: string;
