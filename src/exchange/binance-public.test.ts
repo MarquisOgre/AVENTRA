@@ -16,7 +16,7 @@ describe("Binance public spot client", () => {
 
     expect(result).toMatchObject({
       symbol: "BTCUSDT",
-      price: 65000.25,
+      price: "65000.25",
       source: "binance",
     });
     expect(result.observedAt).toBeInstanceOf(Date);
