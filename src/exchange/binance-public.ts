@@ -21,7 +21,7 @@ export class MarketDataError extends Error {
 
 export interface SpotPrice {
   symbol: string;
-  price: number;
+  price: string;
   source: "binance";
   observedAt: Date;
 }
@@ -99,6 +99,6 @@ export class BinanceSpotPublicClient {
       throw new MarketDataError("invalid_response");
     }
 
-    return { symbol, price, source: "binance", observedAt: new Date() };
+    return { symbol, price: parsed.data.price, source: "binance", observedAt: new Date() };
   }
 }
