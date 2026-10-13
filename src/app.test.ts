@@ -30,7 +30,7 @@ describe("AVENTRA API foundation", () => {
     });
   });
 
-  it("rejects invalid registration input before touching persistence", async () => {
+  it("fails closed for registration when the database is not configured", async () => {
     const response = await makeApp().inject({
       method: "POST",
       url: "/auth/register",
