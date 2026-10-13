@@ -1,14 +1,14 @@
 import Fastify, { type FastifyInstance } from "fastify";
-import type { Logger } from "pino";
 
 export interface AppOptions {
-  logger: Logger;
   appName: string;
   tradingMode: "simulation" | "paper" | "live";
 }
 
 export function buildApp(options: AppOptions): FastifyInstance {
-  const app = Fastify({ loggerInstance: options.logger });
+  // Application logging is handled by the shared Pino logger in the entry point.
+  // Fastify's internal logger is disabled to keep logger types decoupled.
+  const app = Fastify({ logger: false });
 
   app.get("/health", async () => ({
     status: "ok",
