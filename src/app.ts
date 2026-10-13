@@ -5,6 +5,7 @@ import type { Pool } from "pg";
 import { getAccountForSession, loginAccount, registerAccount, revokeSession } from "./auth/service.js";
 import { validatePassword } from "./auth/password.js";
 import { issueTelegramLinkChallenge } from "./users/telegram-linking.js";
+import { setAccountStatusByAdmin } from "./users/admin-actions.js";
 
 export interface AppOptions {
   appName: string;
@@ -17,6 +18,9 @@ const registerSchema = z.object({
   password: z.string().min(12).max(128),
   displayName: z.string().trim().min(1).max(80),
 });
+
+const adminStatusSchema = z.object({ status: z.enum(["active", "suspended"]) });
+const userIdSchema = z.string().uuid();
 
 const loginSchema = z.object({
   email: z.string().trim().email().max(254),
@@ -133,11 +137,44 @@ export function buildApp(options: AppOptions): FastifyInstance {
     try {
       const account = await getAccountForSession(options.databasePool, token);
       if (!account) return reply.code(401).send({ error: "unauthorized" });
-      if (account.status === "suspended") return reply.code(403).send({ error: "account_suspended" });
+      if (account.status !== "active") return reply.code(403).send({ error: "account_not_active" });
       const challenge = await issueTelegramLinkChallenge(options.databasePool, account.id);
       return reply.code(201).send(challenge);
     } catch (error) {
       request.log.error({ errorName: error instanceof Error ? error.name : "UnknownError" }, "Telegram link code issuance failed");
+      return reply.code(500).send({ error: "internal_error" });
+    }
+  });
+
+  app.patch("/admin/users/:userId/status", async (request, reply) => {
+    if (!options.databasePool) return databaseUnavailable(reply);
+    const token = bearerToken(request.headers.authorization);
+    if (!token) return reply.code(401).send({ error: "unauthorized" });
+
+    const params = z.object({ userId: userIdSchema }).safeParse(request.params);
+    const body = adminStatusSchema.safeParse(request.body);
+    if (!params.success || !body.success) {
+      return reply.code(400).send({ error: "invalid_admin_action" });
+    }
+
+    try {
+      const actor = await getAccountForSession(options.databasePool, token);
+      if (!actor) return reply.code(401).send({ error: "unauthorized" });
+      if (actor.status !== "active" || actor.role !== "admin") {
+        return reply.code(403).send({ error: "forbidden" });
+      }
+
+      const result = await setAccountStatusByAdmin(options.databasePool, {
+        actorUserId: actor.id,
+        targetUserId: params.data.userId,
+        status: body.data.status,
+      });
+      if (result.status === "forbidden") return reply.code(403).send({ error: "forbidden" });
+      if (result.status === "not_found") return reply.code(404).send({ error: "user_not_found" });
+      if (result.status === "invalid") return reply.code(400).send({ error: "invalid_admin_action" });
+      return reply.code(200).send({ status: "updated" });
+    } catch (error) {
+      request.log.error({ errorName: error instanceof Error ? error.name : "UnknownError" }, "Admin account status change failed");
       return reply.code(500).send({ error: "internal_error" });
     }
   });
