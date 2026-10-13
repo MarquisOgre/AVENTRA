@@ -6,11 +6,13 @@ import { getAccountForSession, loginAccount, registerAccount, revokeSession } fr
 import { validatePassword } from "./auth/password.js";
 import { issueTelegramLinkChallenge } from "./users/telegram-linking.js";
 import { setAccountStatusByAdmin } from "./users/admin-actions.js";
+import { BinanceSpotPublicClient, MarketDataError } from "./exchange/binance-public.js";
 
 export interface AppOptions {
   appName: string;
   tradingMode: "simulation" | "paper" | "live";
   databasePool?: Pool;
+  marketDataClient?: Pick<BinanceSpotPublicClient, "getSpotPrice">;
 }
 
 const registerSchema = z.object({
@@ -39,6 +41,7 @@ function databaseUnavailable(reply: { code: (status: number) => { send: (body: u
 
 export function buildApp(options: AppOptions): FastifyInstance {
   const app = Fastify({ logger: false });
+  const marketDataClient = options.marketDataClient ?? new BinanceSpotPublicClient();
   void app.register(rateLimit, { global: false });
 
   app.get("/health", async () => ({
@@ -47,6 +50,30 @@ export function buildApp(options: AppOptions): FastifyInstance {
     tradingMode: options.tradingMode,
     liveTradingImplemented: false,
   }));
+
+  app.get("/market-data/spot-price", {
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+  }, async (request, reply) => {
+    const query = z.object({ symbol: z.string().min(3).max(20) }).safeParse(request.query);
+    if (!query.success) return reply.code(400).send({ error: "invalid_symbol" });
+
+    try {
+      const price = await marketDataClient.getSpotPrice(query.data.symbol);
+      return reply.code(200).send(price);
+    } catch (error) {
+      if (error instanceof MarketDataError && error.code === "invalid_symbol") {
+        return reply.code(400).send({ error: "invalid_symbol" });
+      }
+      if (error instanceof MarketDataError && error.code === "rate_limited") {
+        return reply.code(429).send({ error: "market_data_rate_limited" });
+      }
+      if (error instanceof MarketDataError && error.code === "timeout") {
+        return reply.code(504).send({ error: "market_data_timeout" });
+      }
+      request.log.error({ errorCode: error instanceof MarketDataError ? error.code : "unknown" }, "Market-data request failed");
+      return reply.code(503).send({ error: "market_data_unavailable" });
+    }
+  });
 
   app.get("/ready", async (_request, reply) => {
     if (!options.databasePool) {
