@@ -82,15 +82,15 @@ export async function consumeTelegramLinkChallenge(
       return { status: "expired" };
     }
 
-    const existing = await client.query<{ user_id: string }>(
-      `SELECT user_id
+    const existing = await client.query<{ user_id: string; telegram_user_id: string }>(
+      `SELECT user_id, telegram_user_id
        FROM telegram_identities
        WHERE telegram_user_id = $1 OR user_id = $2
        FOR UPDATE`,
       [input.telegramUserId, challenge.user_id],
     );
 
-    if (existing.rows.some((row) => row.user_id !== challenge.user_id)) {
+    if (existing.rows.some((row) => row.user_id !== challenge.user_id || row.telegram_user_id !== input.telegramUserId)) {
       await client.query("ROLLBACK");
       return { status: "already_linked" };
     }
