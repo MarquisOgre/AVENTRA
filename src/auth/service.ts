@@ -74,8 +74,8 @@ export async function registerAccount(
     );
     await client.query(
       `INSERT INTO audit_events (actor_user_id, event_type, subject_type, subject_id, metadata)
-       VALUES ($1, 'account_registered', 'app_user', $1, '{}'::jsonb)`,
-      [row.id],
+       VALUES ($1, 'account_registered', 'app_user', $2, '{}'::jsonb)`,
+      [row.id, row.id],
     );
     await client.query("COMMIT");
     return { id: row.id, email, displayName: row.display_name, status: row.status, role: row.role };
