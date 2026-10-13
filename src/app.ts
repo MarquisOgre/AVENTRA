@@ -172,6 +172,7 @@ export function buildApp(options: AppOptions): FastifyInstance {
       if (result.status === "forbidden") return reply.code(403).send({ error: "forbidden" });
       if (result.status === "not_found") return reply.code(404).send({ error: "user_not_found" });
       if (result.status === "invalid") return reply.code(400).send({ error: "invalid_admin_action" });
+      if (result.status === "last_admin") return reply.code(409).send({ error: "cannot_suspend_last_admin" });
       return reply.code(200).send({ status: "updated" });
     } catch (error) {
       request.log.error({ errorName: error instanceof Error ? error.name : "UnknownError" }, "Admin account status change failed");
