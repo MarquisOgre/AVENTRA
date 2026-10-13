@@ -1,4 +1,6 @@
 import { Bot } from "grammy";
+import type { Pool } from "pg";
+import { consumeTelegramLinkChallenge } from "../users/telegram-linking.js";
 import type { Logger } from "pino";
 import type { TradingMode } from "../core/trading-mode.js";
 import { buildHelpMessage, buildStatusMessage } from "./messages.js";
@@ -7,6 +9,7 @@ export interface CreateBotOptions {
   token: string;
   logger: Logger;
   tradingMode: TradingMode;
+  databasePool?: Pool;
 }
 
 /** Creates the initial read-only Telegram interface. It has no trading commands. */
