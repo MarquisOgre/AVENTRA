@@ -5,7 +5,8 @@ export type AccountAdminActionResult =
   | { status: "updated" }
   | { status: "forbidden" }
   | { status: "not_found" }
-  | { status: "invalid" };
+  | { status: "invalid" }
+  | { status: "last_admin" };
 
 async function rollback(client: PoolClient): Promise<void> {
   await client.query("ROLLBACK").catch(() => undefined);
@@ -21,6 +22,8 @@ export async function setAccountStatusByAdmin(
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+    // Serialize admin status changes to prevent concurrent removal of all active admins.
+    await client.query("SELECT pg_advisory_xact_lock($1)", [7_311_043]);
 
     const actorResult = await client.query<{ role: "user" | "admin"; status: "pending" | "active" | "suspended" }>(
       "SELECT role, status FROM app_users WHERE id = $1 FOR UPDATE",
@@ -32,13 +35,29 @@ export async function setAccountStatusByAdmin(
       return { status: "forbidden" };
     }
 
-    const targetResult = await client.query<{ id: string; status: string }>(
-      "SELECT id, status FROM app_users WHERE id = $1 FOR UPDATE",
+    const targetResult = await client.query<{
+      id: string;
+      status: "pending" | "active" | "suspended";
+      role: "user" | "admin";
+    }>(
+      "SELECT id, status, role FROM app_users WHERE id = $1 FOR UPDATE",
       [input.targetUserId],
     );
-    if (!targetResult.rows[0]) {
+    const target = targetResult.rows[0];
+    if (!target) {
       await rollback(client);
       return { status: "not_found" };
+    }
+
+    if (input.status === "suspended" && target.role === "admin" && target.status === "active") {
+      const otherAdmins = await client.query(
+        "SELECT id FROM app_users WHERE role = 'admin' AND status = 'active' AND id <> $1 LIMIT 1",
+        [input.targetUserId],
+      );
+      if (otherAdmins.rows.length === 0) {
+        await rollback(client);
+        return { status: "last_admin" };
+      }
     }
 
     await client.query(
