@@ -8,6 +8,7 @@ export function buildHelpMessage(): string {
     "/start — Start the bot",
     "/help — Show commands",
     "/status — Show platform status",
+    "/link <one-time-code> — Link your Telegram identity to your AVENTRA account,
     "",
     "Trading execution is not available yet. Never send exchange API keys or secrets in Telegram chat.",
   ].join("\n");
