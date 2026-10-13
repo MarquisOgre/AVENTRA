@@ -49,6 +49,19 @@ describe("AVENTRA API foundation", () => {
     expect(response.json()).toEqual({ error: "service_unavailable" });
   });
 
+  it("rejects admin status changes without a bearer session", async () => {
+    const query = vi.fn();
+    const pool = { query } as unknown as Pool;
+    const response = await makeApp(pool).inject({
+      method: "PATCH",
+      url: "/admin/users/00000000-0000-4000-8000-000000000001/status",
+      payload: { status: "active" },
+    });
+    expect(response.statusCode).toBe(401);
+    expect(response.json()).toEqual({ error: "unauthorized" });
+    expect(query).not.toHaveBeenCalled();
+  });
+
   it("reports not-ready when no database is configured", async () => {
     const response = await makeApp().inject({ method: "GET", url: "/ready" });
     expect(response.statusCode).toBe(503);
