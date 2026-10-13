@@ -24,6 +24,7 @@ databasePool?.on("error", (error: unknown) => {
 const app = buildApp({
   appName: appConfig.appName,
   tradingMode: appConfig.tradingMode,
+  ...(databasePool ? { databasePool } : {}),
 });
 
 const bot = appConfig.telegramBotToken
