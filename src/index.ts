@@ -13,7 +13,6 @@ const logger = pino({
 });
 
 const app = buildApp({
-  logger,
   appName: appConfig.appName,
   tradingMode: appConfig.tradingMode,
 });
