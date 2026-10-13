@@ -31,7 +31,7 @@ export function createTelegramBot(options: CreateBotOptions): Bot {
   });
 
   bot.command("link", async (ctx) => {
-    const code = ctx.match.trim();
+    const code = String(ctx.match ?? "").trim();
     if (!options.databasePool) {
       await ctx.reply("Account linking is temporarily unavailable.");
       return;
