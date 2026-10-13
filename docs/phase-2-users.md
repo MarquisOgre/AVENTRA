@@ -24,8 +24,8 @@
 ## Required before this phase is complete
 - Verify all migrations against a disposable PostgreSQL database and add an automated database integration test job.
 - Add HTTP-level authorization tests for admin activation/suspension routes and verify them against a database-backed test fixture.
-- Add per-user and per-chat rate limits to Telegram handlers.
-- Add end-to-end tests against a disposable PostgreSQL database.
+- Add per-user and per-chat rate limits to Telegram handlers; HTTP rate limits are currently per-process.
+- Expand integration coverage for duplicate registration, session expiry, suspended-account behavior, and administrator bootstrap.
 - Run the initial admin bootstrap command only from a trusted operator shell after the first account has registered. Set `BOOTSTRAP_ADMIN_EMAIL` only for that command, then remove it.
 - Ensure logs and audit metadata never include bot tokens, exchange credentials, or raw authentication challenges.
 
