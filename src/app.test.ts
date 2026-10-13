@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Pool } from "pg";
 import { buildApp } from "./app.js";
+import type { BinanceSpotPublicClient } from "./exchange/binance-public.js";
 
 const apps: ReturnType<typeof buildApp>[] = [];
 
@@ -8,11 +9,12 @@ afterEach(async () => {
   await Promise.all(apps.splice(0).map((app) => app.close()));
 });
 
-function makeApp(databasePool?: Pool) {
+function makeApp(databasePool?: Pool, marketDataClient?: Pick<BinanceSpotPublicClient, "getSpotPrice">) {
   const app = buildApp({
     appName: "AVENTRA",
     tradingMode: "simulation",
     ...(databasePool ? { databasePool } : {}),
+    ...(marketDataClient ? { marketDataClient } : {}),
   });
   apps.push(app);
   return app;
@@ -28,6 +30,39 @@ describe("AVENTRA API foundation", () => {
       tradingMode: "simulation",
       liveTradingImplemented: false,
     });
+  });
+
+  it("serves validated public spot-price data", async () => {
+    const observedAt = new Date("2026-10-13T00:00:00.000Z");
+    const getSpotPrice = vi.fn().mockResolvedValue({
+      symbol: "BTCUSDT",
+      price: 65000,
+      source: "binance",
+      observedAt,
+    });
+    const response = await makeApp(undefined, { getSpotPrice }).inject({
+      method: "GET",
+      url: "/market-data/spot-price?symbol=btcusdt",
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      symbol: "BTCUSDT",
+      price: 65000,
+      source: "binance",
+      observedAt: observedAt.toISOString(),
+    });
+    expect(getSpotPrice).toHaveBeenCalledWith("btcusdt");
+  });
+
+  it("maps upstream market-data failures to a safe service response", async () => {
+    const getSpotPrice = vi.fn().mockRejectedValue(new Error("private upstream details"));
+    const response = await makeApp(undefined, { getSpotPrice }).inject({
+      method: "GET",
+      url: "/market-data/spot-price?symbol=BTCUSDT",
+    });
+    expect(response.statusCode).toBe(503);
+    expect(response.json()).toEqual({ error: "market_data_unavailable" });
+    expect(response.body).not.toContain("private upstream details");
   });
 
   it("fails closed for registration when the database is not configured", async () => {
