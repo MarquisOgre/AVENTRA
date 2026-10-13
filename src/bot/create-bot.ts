@@ -30,6 +30,36 @@ export function createTelegramBot(options: CreateBotOptions): Bot {
     await ctx.reply(buildStatusMessage(options.tradingMode));
   });
 
+  bot.command("link", async (ctx) => {
+    const code = ctx.match.trim();
+    if (!options.databasePool) {
+      await ctx.reply("Account linking is temporarily unavailable.");
+      return;
+    }
+    if (!code || !ctx.from) {
+      await ctx.reply("Usage: /link <one-time-code>. Generate the code from your authenticated AVENTRA account.");
+      return;
+    }
+    try {
+      const result = await consumeTelegramLinkChallenge(options.databasePool, {
+        code,
+        telegramUserId: String(ctx.from.id),
+        username: ctx.from.username ?? null,
+      });
+      if (result.status === "linked") {
+        await ctx.reply("Telegram identity linked. Your account status is unchanged.");
+      } else if (result.status === "expired") {
+        await ctx.reply("This linking code expired. Generate a new one.");
+      } else if (result.status === "already_linked") {
+        await ctx.reply("This Telegram identity or account is already linked elsewhere.");
+      } else {
+        await ctx.reply("This linking code is invalid or has already been used.");
+      }
+    } catch {
+      await ctx.reply("Account linking failed temporarily. Please try again later.");
+    }
+  });
+
   bot.catch((error) => {
     // Do not log the full Telegram error or update payload; they may contain sensitive data.
     options.logger.error(
