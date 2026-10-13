@@ -10,6 +10,15 @@
 - One-time linking codes stored as hashes, expiring after ten minutes, and consumed transactionally.
 - Admin status-change service requiring an active admin and recording an audit event.
 
+## Account API foundation
+- `POST /auth/register`: creates a pending user account. Passwords are hashed with scrypt; users cannot self-assign an admin role.
+- `POST /auth/login`: returns an opaque bearer session token with a seven-day expiry.
+- `GET /auth/me`: resolves the current bearer session.
+- `POST /auth/logout`: revokes the current bearer session.
+- `POST /auth/telegram-link-code`: authenticated users can request a one-time Telegram linking code. The code is shown only in the authenticated response and is stored as a hash.
+- Authentication routes have an initial per-process rate limit of five requests per minute on registration, login, and linking-code issuance. Production deployments with multiple instances should configure a shared rate-limit store.
+- Keep bearer tokens private. Use HTTPS in any deployed environment and never place tokens in URLs or logs.
+
 ## Required before this phase is complete
 - Build an authenticated account surface that issues linking codes only to the account owner. The issuance function must never be exposed as an unauthenticated endpoint.
 - Add a reviewed migration runner and verify migrations against a disposable PostgreSQL database.
