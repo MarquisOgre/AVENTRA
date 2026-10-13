@@ -30,13 +30,23 @@ AVENTRA is an independent, commercial, multi-user Telegram cryptocurrency tradin
 
 The exact database migration/ORM and background job approach will be confirmed during Phase 1.
 
-## Project status
+## Current implementation status
 
-This repository is being initialized. No real trading functionality is implemented yet. Trading must begin in simulation; live order submission remains out of scope until security, trading-state, recovery, and paper-trading gates are passed.
+- Fastify API and Telegram bot foundation are implemented.
+- PostgreSQL migrations and connection pooling are implemented.
+- Account registration, scrypt password hashing, bearer sessions, logout, and authenticated Telegram linking-code issuance are implemented.
+- Admin-only account activation/suspension and one-time operator bootstrap are implemented, with protection against suspending the last active administrator.
+- CI includes dependency auditing, type-checking, production build, database migrations, and PostgreSQL-backed authentication/linking integration tests.
+- Exchange connectivity, market-data ingestion, trading simulation, and order execution are not implemented yet.
+- Live trading remains disabled.
 
-## Phase 1 documents
+See `docs/operator-runbook.md` for local setup and initial administrator provisioning. Never run migrations or bootstrap commands against production without a reviewed deployment procedure.
+
+## Project documents
 
 - `docs/architecture.md`
 - `docs/security-baseline.md`
 - `docs/roadmap.md`
 - `docs/phase-1-acceptance.md`
+- `docs/phase-2-users.md`
+- `docs/operator-runbook.md`
