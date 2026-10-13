@@ -10,6 +10,7 @@ export interface AuthenticatedAccount {
   email: string;
   displayName: string;
   status: "pending" | "active" | "suspended";
+  role: "user" | "admin";
 }
 
 export interface IssuedSession {
@@ -31,12 +32,14 @@ function toAccount(row: {
   email: string;
   display_name: string;
   status: AuthenticatedAccount["status"];
+  role: AuthenticatedAccount["role"];
 }): AuthenticatedAccount {
   return {
     id: row.id,
     email: row.email,
     displayName: row.display_name,
     status: row.status,
+    role: row.role,
   };
 }
 
@@ -56,10 +59,10 @@ export async function registerAccount(
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const created = await client.query<{ id: string; display_name: string; status: AuthenticatedAccount["status"] }>(
+    const created = await client.query<{ id: string; display_name: string; status: AuthenticatedAccount["status"]; role: AuthenticatedAccount["role"] }>(
       `INSERT INTO app_users (display_name, role, status)
        VALUES ($1, 'user', 'pending')
-       RETURNING id, display_name, status`,
+       RETURNING id, display_name, status, role`,
       [input.displayName.trim()],
     );
     const row = created.rows[0];
@@ -75,7 +78,7 @@ export async function registerAccount(
       [row.id],
     );
     await client.query("COMMIT");
-    return { id: row.id, email, displayName: row.display_name, status: row.status };
+    return { id: row.id, email, displayName: row.display_name, status: row.status, role: row.role };
   } catch (error) {
     await client.query("ROLLBACK").catch(() => undefined);
     if (typeof error === "object" && error !== null && "code" in error &&
@@ -99,9 +102,10 @@ export async function loginAccount(
     email: string;
     display_name: string;
     status: AuthenticatedAccount["status"];
+    role: AuthenticatedAccount["role"];
     password_hash: string;
   }>(
-    `SELECT u.id, c.email, u.display_name, u.status, c.password_hash
+    `SELECT u.id, c.email, u.display_name, u.status, u.role, c.password_hash
      FROM app_credentials AS c
      INNER JOIN app_users AS u ON u.id = c.user_id
      WHERE c.email = $1
@@ -134,8 +138,9 @@ export async function getAccountForSession(
     email: string;
     display_name: string;
     status: AuthenticatedAccount["status"];
+    role: AuthenticatedAccount["role"];
   }>(
-    `SELECT u.id, c.email, u.display_name, u.status
+    `SELECT u.id, c.email, u.display_name, u.status, u.role
      FROM web_sessions AS s
      INNER JOIN app_users AS u ON u.id = s.user_id
      INNER JOIN app_credentials AS c ON c.user_id = u.id
