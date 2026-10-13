@@ -32,9 +32,9 @@ export async function issueTelegramLinkChallenge(
   const expiresAt = new Date(now.getTime() + CHALLENGE_TTL_MS);
 
   await pool.query(
-    `INSERT INTO telegram_link_challenges (user_id, token_hash, expires_at)
-     VALUES ($1, $2, $3)`,
-    [userId, hashCode(code), expiresAt],
+    `INSERT INTO telegram_link_challenges (user_id, token_hash, expires_at, created_at)
+     VALUES ($1, $2, $3, $4)`,
+    [userId, hashCode(code), expiresAt, now],
   );
 
   return { code, expiresAt };
