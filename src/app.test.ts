@@ -62,6 +62,30 @@ describe("AVENTRA API foundation", () => {
     expect(query).not.toHaveBeenCalled();
   });
 
+  it("forbids a regular active user from using admin status changes", async () => {
+    const query = vi.fn().mockResolvedValue({
+      rows: [{
+        id: "actor-id",
+        email: "user@example.test",
+        display_name: "Regular User",
+        status: "active",
+        role: "user",
+      }],
+    });
+    const connect = vi.fn();
+    const pool = { query, connect } as unknown as Pool;
+    const response = await makeApp(pool).inject({
+      method: "PATCH",
+      url: "/admin/users/00000000-0000-4000-8000-000000000001/status",
+      headers: { authorization: `Bearer ${"A".repeat(43)}` },
+      payload: { status: "active" },
+    });
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toEqual({ error: "forbidden" });
+    expect(query).toHaveBeenCalledOnce();
+    expect(connect).not.toHaveBeenCalled();
+  });
+
   it("reports not-ready when no database is configured", async () => {
     const response = await makeApp().inject({ method: "GET", url: "/ready" });
     expect(response.statusCode).toBe(503);
