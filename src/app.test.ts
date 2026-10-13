@@ -30,6 +30,25 @@ describe("AVENTRA API foundation", () => {
     });
   });
 
+  it("rejects invalid registration input before touching persistence", async () => {
+    const response = await makeApp().inject({
+      method: "POST",
+      url: "/auth/register",
+      payload: { email: "not-an-email", password: "short", displayName: "" },
+    });
+    expect(response.statusCode).toBe(503);
+    expect(response.json()).toEqual({ error: "service_unavailable" });
+  });
+
+  it("requires a bearer session before issuing Telegram link codes", async () => {
+    const response = await makeApp().inject({
+      method: "POST",
+      url: "/auth/telegram-link-code",
+    });
+    expect(response.statusCode).toBe(503);
+    expect(response.json()).toEqual({ error: "service_unavailable" });
+  });
+
   it("reports not-ready when no database is configured", async () => {
     const response = await makeApp().inject({ method: "GET", url: "/ready" });
     expect(response.statusCode).toBe(503);
