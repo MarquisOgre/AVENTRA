@@ -18,9 +18,14 @@ if (!parsed.success) {
   throw new Error(`Invalid environment configuration: ${parsed.error.message}`);
 }
 
+// Deliberately hard-coded false until the live-trading release checklist passes.
+// Setting an environment variable alone cannot enable live trading.
+const liveTradingReleaseApproved = false;
+const liveTradingEnabled = parsed.data.LIVE_TRADING_ENABLED === "true";
 const tradingMode = resolveTradingMode({
   mode: parsed.data.TRADING_MODE,
-  liveTradingEnabled: parsed.data.LIVE_TRADING_ENABLED === "true",
+  liveTradingEnabled,
+  liveTradingReleaseApproved,
 });
 
 export const appConfig = {
@@ -32,5 +37,5 @@ export const appConfig = {
   telegramBotToken: parsed.data.TELEGRAM_BOT_TOKEN,
   databaseUrl: parsed.data.DATABASE_URL,
   tradingMode,
-  liveTradingEnabled: parsed.data.LIVE_TRADING_ENABLED === "true",
+  liveTradingEnabled: liveTradingEnabled && liveTradingReleaseApproved,
 } as const;
