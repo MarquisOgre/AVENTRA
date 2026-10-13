@@ -30,7 +30,10 @@ export function createTelegramBot(options: CreateBotOptions): Bot {
   bot.catch((error) => {
     // Do not log the full Telegram error or update payload; they may contain sensitive data.
     options.logger.error(
-      { updateId: error.ctx.update.update_id, errorName: error.error.name },
+      {
+        updateId: error.ctx.update.update_id,
+        errorName: error.error instanceof Error ? error.error.name : "UnknownError",
+      },
       "Telegram update handling failed",
     );
   });
