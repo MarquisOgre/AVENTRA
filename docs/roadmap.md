@@ -1,50 +1,56 @@
 # AVENTRA Roadmap
 
 ## Phase 1 — Foundation and legacy audit
-- Inventory legacy modules and dependencies.
-- Document security and trading defects.
-- Confirm architecture and initial stack.
-- Establish type-check/test workflow.
-- Define data model and execution state machine.
-- Keep all trading in simulation.
+- [x] Establish TypeScript application, HTTP API, and CI workflow.
+- [x] Document architecture and security baseline.
+- [x] Define data model and keep trading in simulation.
+- [ ] Complete the legacy archive audit before reusing any code.
 
 ## Phase 2 — Telegram bot and users
-- Bot initialization and command routing.
-- User registration and Telegram identity linking.
-- Authorization, account status, and admin roles.
-- Safe error messages and rate limits.
+- [x] Bot initialization and safe command routing.
+- [x] User registration, password hashing, and session authentication.
+- [x] Telegram identity linking with one-time hashed challenges.
+- [x] Authorization, account status, and administrator roles.
+- [x] Initial administrator bootstrap and audited account activation/suspension.
+- [x] Rate limits on authentication and administrator status endpoints.
+- [x] PostgreSQL migrations and integration tests in CI.
+- [ ] Add Telegram per-user/per-chat rate limits.
+- [ ] Review production session delivery, shared rate limiting, account recovery, and email verification.
 
-## Phase 3 — Binance integration
-- Public market data.
-- Exchange metadata and filters.
-- Balance and order adapter contracts.
-- Mock exchange tests before authenticated connectivity.
+## Phase 3 — Binance public market data
+- [x] Add a validated public spot-price client with timeout and throttling handling.
+- [ ] Add exchange metadata and symbol filters.
+- [ ] Add freshness checks, caching, and service-level health metrics.
+- [ ] Add integration/contract tests against recorded exchange responses.
+- [ ] Keep all exchange access public and unauthenticated until adapter contracts are reviewed.
 
 ## Phase 4 — Trading engine
-- Signal validation and replay prevention.
-- Order/trade state machine.
-- Partial fills and duplicate-request prevention.
-- Durable persistence and reconciliation.
+- [ ] Signal validation and replay prevention.
+- [ ] Order/trade state machine.
+- [ ] Partial fills and duplicate-request prevention.
+- [ ] Durable persistence and reconciliation.
 
 ## Phase 5 — Risk management
-- Per-order sizing limits.
-- Account/strategy exposure limits.
-- Maximum concurrent trades.
-- Stop-loss and profit-target behavior.
-- Emergency disablement.
+- [ ] Per-order sizing limits.
+- [ ] Account/strategy exposure limits.
+- [ ] Maximum concurrent trades.
+- [ ] Stop-loss and profit-target behavior.
+- [ ] Emergency disablement.
 
 ## Phase 6 — Strategy automation
-- Strategy configuration and lifecycle.
-- Trailing stops.
-- Recurring purchases with strict exposure caps.
+- [ ] Strategy configuration and lifecycle.
+- [ ] Trailing stops.
+- [ ] Recurring purchases with strict exposure caps.
 
 ## Phase 7 — Analytics and commercial features
-- Fee-aware reports.
-- Notifications and administration.
-- Subscription plans, entitlements, and billing.
+- [ ] Fee-aware reports.
+- [ ] Notifications and administration.
+- [ ] Subscription plans, entitlements, and billing.
 
 ## Phase 8 — Production readiness
-- Security and failure-mode review.
-- Paper-trading period.
-- Monitoring, backup, and recovery exercises.
-- Explicit live-trading release gate.
+- [ ] Security and failure-mode review.
+- [ ] Sustained paper-trading period.
+- [ ] Monitoring, backup, and recovery exercises.
+- [ ] Explicit live-trading release gate.
+
+**Live order execution remains disabled until the security, state-management, risk, recovery, and paper-trading gates pass.**
