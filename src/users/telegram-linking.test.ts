@@ -14,8 +14,9 @@ describe("Telegram identity linking", () => {
     expect(result.expiresAt.getTime() - now.getTime()).toBe(10 * 60 * 1000);
     expect(query).toHaveBeenCalledWith(
       expect.stringContaining("INSERT INTO telegram_link_challenges"),
-      ["user-id", expect.not.stringMatching(result.code), result.expiresAt],
+      ["user-id", expect.stringMatching(/^[a-f0-9]{64}$/), result.expiresAt, now],
     );
+    expect(query.mock.calls[0]?.[1]).not.toContain(result.code);
   });
 
   it("rejects malformed codes and Telegram IDs before opening a transaction", async () => {
