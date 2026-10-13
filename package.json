@@ -12,7 +12,8 @@
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "db:migrate": "tsx src/db/migrate-cli.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
