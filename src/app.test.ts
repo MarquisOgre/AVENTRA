@@ -36,7 +36,7 @@ describe("AVENTRA API foundation", () => {
     const observedAt = new Date("2026-10-13T00:00:00.000Z");
     const getSpotPrice = vi.fn().mockResolvedValue({
       symbol: "BTCUSDT",
-      price: 65000,
+      price: "65000",
       source: "binance",
       observedAt,
     });
