@@ -1,12 +1,30 @@
 import { z } from "zod";
 
+const decimalString = z.string().regex(/^\d+(?:\.\d+)?$/);
 const tickerPriceSchema = z.object({
   symbol: z.string().regex(/^[A-Z0-9]{3,20}$/),
-  price: z.string().regex(/^\d+(?:\.\d+)?$/),
+  price: decimalString,
+});
+
+const symbolFilterSchema = z.object({
+  filterType: z.string(),
+}).passthrough();
+
+const exchangeInfoSchema = z.object({
+  symbols: z.array(z.object({
+    symbol: z.string().regex(/^[A-Z0-9]{3,20}$/),
+    status: z.string(),
+    baseAsset: z.string(),
+    quoteAsset: z.string(),
+    isSpotTradingAllowed: z.boolean().optional(),
+    filters: z.array(symbolFilterSchema),
+  })),
 });
 
 export type MarketDataErrorCode =
   | "invalid_symbol"
+  | "symbol_not_found"
+  | "symbol_not_trading"
   | "rate_limited"
   | "upstream_error"
   | "invalid_response"
@@ -22,6 +40,22 @@ export class MarketDataError extends Error {
 export interface SpotPrice {
   symbol: string;
   price: string;
+  source: "binance";
+  observedAt: Date;
+}
+
+export interface SpotSymbolRules {
+  symbol: string;
+  baseAsset: string;
+  quoteAsset: string;
+  status: "TRADING";
+  tickSize: string;
+  minPrice: string;
+  maxPrice: string;
+  stepSize: string;
+  minQty: string;
+  maxQty: string;
+  minNotional: string | null;
   source: "binance";
   observedAt: Date;
 }
@@ -52,15 +86,7 @@ export class BinanceSpotPublicClient {
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
 
-  async getSpotPrice(symbolInput: string): Promise<SpotPrice> {
-    const symbol = symbolInput.trim().toUpperCase();
-    if (!/^[A-Z0-9]{3,20}$/.test(symbol)) {
-      throw new MarketDataError("invalid_symbol");
-    }
-
-    const url = new URL("/api/v3/ticker/price", this.baseUrl);
-    url.searchParams.set("symbol", symbol);
-
+  private async getJson(url: URL): Promise<unknown> {
     let response: Response;
     try {
       response = await this.fetchImpl(url, {
@@ -82,23 +108,85 @@ export class BinanceSpotPublicClient {
       throw new MarketDataError("upstream_error");
     }
 
-    let payload: unknown;
     try {
-      payload = await response.json();
+      return await response.json();
     } catch {
       throw new MarketDataError("invalid_response");
     }
+  }
 
-    const parsed = tickerPriceSchema.safeParse(payload);
-    if (!parsed.success || parsed.data.symbol !== symbol) {
-      throw new MarketDataError("invalid_response");
+  async getSpotPrice(symbolInput: string): Promise<SpotPrice> {
+    const symbol = symbolInput.trim().toUpperCase();
+    if (!/^[A-Z0-9]{3,20}$/.test(symbol)) {
+      throw new MarketDataError("invalid_symbol");
     }
 
-    const price = Number(parsed.data.price);
-    if (!Number.isFinite(price) || price <= 0) {
+    const url = new URL("/api/v3/ticker/price", this.baseUrl);
+    url.searchParams.set("symbol", symbol);
+    const parsed = tickerPriceSchema.safeParse(await this.getJson(url));
+    if (!parsed.success || parsed.data.symbol !== symbol || Number(parsed.data.price) <= 0) {
       throw new MarketDataError("invalid_response");
     }
 
     return { symbol, price: parsed.data.price, source: "binance", observedAt: new Date() };
+  }
+
+  async getSpotSymbolRules(symbolInput: string): Promise<SpotSymbolRules> {
+    const symbol = symbolInput.trim().toUpperCase();
+    if (!/^[A-Z0-9]{3,20}$/.test(symbol)) {
+      throw new MarketDataError("invalid_symbol");
+    }
+
+    const url = new URL("/api/v3/exchangeInfo", this.baseUrl);
+    url.searchParams.set("symbol", symbol);
+    const parsed = exchangeInfoSchema.safeParse(await this.getJson(url));
+    if (!parsed.success) throw new MarketDataError("invalid_response");
+
+    const info = parsed.data.symbols.find((item) => item.symbol === symbol);
+    if (!info) throw new MarketDataError("symbol_not_found");
+    if (info.status !== "TRADING" || info.isSpotTradingAllowed === false) {
+      throw new MarketDataError("symbol_not_trading");
+    }
+
+    const priceFilter = info.filters.find((item) => item.filterType === "PRICE_FILTER");
+    const lotFilter = info.filters.find((item) => item.filterType === "LOT_SIZE");
+    const notionalFilter = info.filters.find((item) =>
+      item.filterType === "NOTIONAL" || item.filterType === "MIN_NOTIONAL",
+    );
+
+    const filterDecimals = (filter: Record<string, unknown>, keys: string[]) => {
+      const values = Object.fromEntries(keys.map((key) => [key, filter[key]]));
+      return Object.values(values).every((value) => typeof value === "string" && decimalString.safeParse(value).success);
+    };
+
+    if (!priceFilter || !lotFilter ||
+        !filterDecimals(priceFilter, ["tickSize", "minPrice", "maxPrice"]) ||
+        !filterDecimals(lotFilter, ["stepSize", "minQty", "maxQty"])) {
+      throw new MarketDataError("invalid_response");
+    }
+
+    let minNotional: string | null = null;
+    if (notionalFilter) {
+      const candidate = notionalFilter["minNotional"];
+      if (typeof candidate === "string" && decimalString.safeParse(candidate).success) {
+        minNotional = candidate;
+      }
+    }
+
+    return {
+      symbol,
+      baseAsset: info.baseAsset,
+      quoteAsset: info.quoteAsset,
+      status: "TRADING",
+      tickSize: priceFilter["tickSize"] as string,
+      minPrice: priceFilter["minPrice"] as string,
+      maxPrice: priceFilter["maxPrice"] as string,
+      stepSize: lotFilter["stepSize"] as string,
+      minQty: lotFilter["minQty"] as string,
+      maxQty: lotFilter["maxQty"] as string,
+      minNotional,
+      source: "binance",
+      observedAt: new Date(),
+    };
   }
 }
