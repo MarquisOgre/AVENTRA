@@ -34,7 +34,7 @@ const simulationTradeSchema = z.object({
   quantity: z.string().regex(/^(?:0|[1-9]\\d*)(?:\\.\\d{1,18})?$/),
   stopLossPrice: z.string().regex(/^(?:0|[1-9]\\d*)(?:\\.\\d{1,18})?$/).optional(),
   takeProfitPrice: z.string().regex(/^(?:0|[1-9]\\d*)(?:\\.\\d{1,18})?$/).optional(),
-  trailingStopPercent: z.string().regex(/^(?:0|[1-9]\\d*)(?:\\.\\d+)?$/).optional(),
+  trailingStopPercent: z.string().regex(/^(?:0|[1-9]\\d*)(?:\\.\\d{1,5})?$/).optional(),
 }).strict();
 
 const simulationStatusSchema = z.enum(["open", "closed"]);
@@ -216,7 +216,7 @@ export function buildApp(options: AppOptions): FastifyInstance {
         maxOpenTrades: options.maxOpenSimulatedTradesPerUser ?? 10,
         maxExposure: options.maxSimulationExposure ?? "5000",
       });
-      return reply.code(201).send({ trade: saved, mode: "simulation", liveOrdersPlaced: false });
+      return reply.code(201).send({ trade: saved, mode: options.tradingMode, liveOrdersPlaced: false });
     } catch (error) {
       if (error instanceof SimulationRiskLimitError) {
         if (error.code === "max_open_trades") return reply.code(409).send({ error: "maximum_open_simulated_trades_reached" });

@@ -2,6 +2,7 @@ import { z } from "zod";
 
 const decimal = z.string().regex(/^(?:0|[1-9]\d*)(?:\.\d+)?$/);
 const positiveDecimal = decimal.refine((value) => /[1-9]/.test(value), "must be greater than zero");
+const trailingPercent = z.string().regex(/^(?:0|[1-9]\\d*)(?:\\.\\d{1,5})?$/).refine((value) => /[1-9]/.test(value), "must be greater than zero");
 
 export type ExitReason = "stop_loss" | "take_profit" | "trailing_stop";
 
@@ -109,7 +110,9 @@ export function openSimulatedTrade(input: OpenTradeInput): SimulatedTrade {
   const entryPrice = validatePrice(input.entryPrice, "invalid_entry_price");
   const stopLossPrice = validatePrice(input.stopLossPrice, "invalid_stop_loss");
   const takeProfitPrice = validatePrice(input.takeProfitPrice, "invalid_take_profit");
-  const trailingStopPercent = validatePrice(input.trailingStopPercent, "invalid_trailing_stop");
+  const trailingStopPercentParsed = input.trailingStopPercent == null ? null : trailingPercent.safeParse(input.trailingStopPercent);
+  if (trailingStopPercentParsed && !trailingStopPercentParsed.success) throw new TradeValidationError("invalid_trailing_stop");
+  const trailingStopPercent = trailingStopPercentParsed?.success ? trailingStopPercentParsed.data : null;
 
   if (stopLossPrice && compareDecimal(stopLossPrice, entryPrice!) >= 0) {
     throw new TradeValidationError("invalid_stop_loss");

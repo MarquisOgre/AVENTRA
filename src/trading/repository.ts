@@ -69,7 +69,7 @@ export async function createSimulatedTrade(pool: Pool, trade: SimulatedTrade, li
       await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [trade.userId]);
       const totals = await client.query<{ open_count: number; exposure: string }>(
         `SELECT COUNT(*)::int AS open_count,
-           COALESCE(SUM(entry_price * quantity), 0)::text AS exposure
+           COALESCE(SUM(entry_price * quantity), 0)::numeric(38,18)::text AS exposure
          FROM simulated_trades WHERE user_id = $1 AND status = 'open'`,
         [trade.userId],
       );
