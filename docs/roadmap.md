@@ -36,7 +36,8 @@
 - [ ] Implement signal validation, authenticated provenance, expiry and replay prevention.
 - [ ] Implement simulated fills, partial-fill ledger and order/trade reconciliation.
 - [x] Add authenticated simulation trade create/list API with server-observed quotes, exchange filter validation, stale-data checks and per-user exposure limits.
-- [ ] Connect Telegram commands to authenticated per-user simulation workflows.
+- [x] Add `/trades` Telegram command for linked, active users to view their own open simulation positions.
+- [ ] Add Telegram per-user/per-chat rate limits and authenticated simulation trade-creation workflow.
 
 ## Phase 5 — Risk management
 - [ ] Per-order sizing limits.

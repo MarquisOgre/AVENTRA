@@ -4,6 +4,7 @@ import { consumeTelegramLinkChallenge } from "../users/telegram-linking.js";
 import type { Logger } from "pino";
 import type { TradingMode } from "../core/trading-mode.js";
 import { buildHelpMessage, buildStatusMessage } from "./messages.js";
+import { listSimulatedTrades } from "../trading/repository.js";
 
 export interface CreateBotOptions {
   token: string;
@@ -28,6 +29,48 @@ export function createTelegramBot(options: CreateBotOptions): Bot {
 
   bot.command("status", async (ctx) => {
     await ctx.reply(buildStatusMessage(options.tradingMode));
+  });
+
+  bot.command("trades", async (ctx) => {
+    if (!options.databasePool || !ctx.from) {
+      await ctx.reply("Trade history is temporarily unavailable.");
+      return;
+    }
+    try {
+      const linked = await options.databasePool.query<{ user_id: string; status: string }>(
+        `SELECT u.id AS user_id, u.status
+         FROM telegram_identities ti
+         JOIN app_users u ON u.id = ti.user_id
+         WHERE ti.telegram_user_id = $1`,
+        [String(ctx.from.id)],
+      );
+      const account = linked.rows[0];
+      if (!account) {
+        await ctx.reply("Link your Telegram identity to an AVENTRA account first using /link <one-time-code>.");
+        return;
+      }
+      if (account.status !== "active") {
+        await ctx.reply("Your AVENTRA account is not active. Contact an administrator.");
+        return;
+      }
+      const trades = await listSimulatedTrades(options.databasePool, account.user_id, "open");
+      if (trades.length === 0) {
+        await ctx.reply("You have no open simulation trades.");
+        return;
+      }
+      const lines = trades.slice(0, 10).map((trade) =>
+        `• ${trade.symbol} | Qty ${trade.quantity} | Entry ${trade.entryPrice}` +
+        (trade.stopLossPrice ? ` | SL ${trade.stopLossPrice}` : "") +
+        (trade.takeProfitPrice ? ` | TP ${trade.takeProfitPrice}` : "") +
+        (trade.trailingStopPrice ? ` | Trail ${trade.trailingStopPrice}` : ""),
+      );
+      await ctx.reply(["Your open simulation trades (not live orders):", "", ...lines].join("\n"));
+    } catch (error) {
+      options.logger.error({
+        errorName: error instanceof Error ? error.name : "UnknownError",
+      }, "Telegram trade history lookup failed");
+      await ctx.reply("Trade history could not be loaded right now.");
+    }
   });
 
   bot.command("link", async (ctx) => {

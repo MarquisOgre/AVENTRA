@@ -9,9 +9,11 @@ export function buildHelpMessage(): string {
     "/help — Show commands",
     "/status — Show platform status",
     "/link <one-time-code> — Link your Telegram identity to your AVENTRA account",
+    "/trades — View your open simulation trades after linking your account",
     "",
     "Account linking requires a one-time code from an authenticated AVENTRA account; code issuance is not available in this initial build.",
-    "Trading execution is not available yet. Never send exchange API keys or secrets in Telegram chat.",
+    "Simulation trade history is read-only here; creating or managing trades from Telegram is not enabled yet.",
+    "Never send exchange API keys or secrets in Telegram chat.",
   ].join("\n");
 }
 
