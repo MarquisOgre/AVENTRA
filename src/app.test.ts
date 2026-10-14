@@ -181,3 +181,15 @@ describe("AVENTRA API foundation", () => {
     });
   });
 });
+
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { compareDecimalStrings, isMultipleOfStep, multiplyDecimalStrings } from "./trading/decimal.js";
+
+describe("simulation decimal rules", () => {
+  it("uses exact decimal comparisons for tiny exchange prices", () => {
+    expect(compareDecimalStrings("0.000000000000000011", "0.000000000000000010")).toBe(1);
+    expect(isMultipleOfStep("0.0015", "0.0005")).toBe(true);
+    expect(isMultipleOfStep("0.0016", "0.0005")).toBe(false);
+    expect(multiplyDecimalStrings("0.1", "0.2")).toBe("0.02");
+  });
+});

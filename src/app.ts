@@ -6,13 +6,21 @@ import { getAccountForSession, loginAccount, registerAccount, revokeSession } fr
 import { validatePassword } from "./auth/password.js";
 import { issueTelegramLinkChallenge } from "./users/telegram-linking.js";
 import { setAccountStatusByAdmin } from "./users/admin-actions.js";
+import { randomUUID } from "node:crypto";
 import { BinanceSpotPublicClient, MarketDataError } from "./exchange/binance-public.js";
+import { createSimulatedTrade, listSimulatedTrades } from "./trading/repository.js";
+import { openSimulatedTrade } from "./trading/simulation-engine.js";
+import { addDecimalStrings, compareDecimalStrings, isDecimalString, isMultipleOfStep, multiplyDecimalStrings } from "./trading/decimal.js";
 
 export interface AppOptions {
   appName: string;
   tradingMode: "simulation" | "paper" | "live";
   databasePool?: Pool;
   marketDataClient?: Pick<BinanceSpotPublicClient, "getSpotPrice"> & Partial<Pick<BinanceSpotPublicClient, "getSpotSymbolRules">>;
+  maxSimulationNotional?: string;
+  maxSimulationExposure?: string;
+  maxOpenSimulatedTradesPerUser?: number;
+  maxMarketDataAgeMs?: number;
 }
 
 const registerSchema = z.object({
@@ -21,6 +29,15 @@ const registerSchema = z.object({
   displayName: z.string().trim().min(1).max(80),
 });
 
+const simulationTradeSchema = z.object({
+  symbol: z.string().trim().min(3).max(20).regex(/^[A-Za-z0-9]+$/),
+  quantity: z.string().regex(/^(?:0|[1-9]\\d*)(?:\\.\\d{1,18})?$/),
+  stopLossPrice: z.string().regex(/^(?:0|[1-9]\\d*)(?:\\.\\d{1,18})?$/).optional(),
+  takeProfitPrice: z.string().regex(/^(?:0|[1-9]\\d*)(?:\\.\\d{1,18})?$/).optional(),
+  trailingStopPercent: z.string().regex(/^(?:0|[1-9]\\d*)(?:\\.\\d+)?$/).optional(),
+}).strict();
+
+const simulationStatusSchema = z.enum(["open", "closed"]);
 const adminStatusSchema = z.object({ status: z.enum(["active", "suspended"]) });
 const userIdSchema = z.string().uuid();
 
@@ -104,6 +121,127 @@ export function buildApp(options: AppOptions): FastifyInstance {
       }
       request.log.error({ errorCode: error instanceof MarketDataError ? error.code : "unknown" }, "Market-data request failed");
       return reply.code(503).send({ error: "market_data_unavailable" });
+    }
+  });
+
+
+  app.get("/simulation/trades", async (request, reply) => {
+    if (!options.databasePool) return databaseUnavailable(reply);
+    if (options.tradingMode === "live") return reply.code(409).send({ error: "live_trading_unavailable" });
+    const token = bearerToken(request.headers.authorization);
+    if (!token) return reply.code(401).send({ error: "unauthorized" });
+    const query = z.object({ status: simulationStatusSchema.optional() }).safeParse(request.query);
+    if (!query.success) return reply.code(400).send({ error: "invalid_query" });
+    try {
+      const account = await getAccountForSession(options.databasePool, token);
+      if (!account) return reply.code(401).send({ error: "unauthorized" });
+      if (account.status !== "active") return reply.code(403).send({ error: "account_not_active" });
+      const trades = await listSimulatedTrades(options.databasePool, account.id, query.data.status ?? null);
+      return reply.code(200).send({ trades });
+    } catch (error) {
+      request.log.error({ errorName: error instanceof Error ? error.name : "UnknownError" }, "Simulation trade listing failed");
+      return reply.code(500).send({ error: "internal_error" });
+    }
+  });
+
+  app.post("/simulation/trades", {
+    config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
+  }, async (request, reply) => {
+    if (!options.databasePool) return databaseUnavailable(reply);
+    if (options.tradingMode === "live") return reply.code(409).send({ error: "live_trading_unavailable" });
+    if (!marketDataClient.getSpotSymbolRules) return reply.code(503).send({ error: "market_data_unavailable" });
+    const token = bearerToken(request.headers.authorization);
+    if (!token) return reply.code(401).send({ error: "unauthorized" });
+    const parsed = simulationTradeSchema.safeParse(request.body);
+    if (!parsed.success || !isDecimalString(parsed.data?.quantity ?? "") || compareDecimalStrings(parsed.data?.quantity ?? "0", "0") <= 0) {
+      return reply.code(400).send({ error: "invalid_simulation_trade" });
+    }
+
+    try {
+      const account = await getAccountForSession(options.databasePool, token);
+      if (!account) return reply.code(401).send({ error: "unauthorized" });
+      if (account.status !== "active") return reply.code(403).send({ error: "account_not_active" });
+
+      const symbol = parsed.data.symbol.toUpperCase();
+      const [price, rules] = await Promise.all([
+        marketDataClient.getSpotPrice(symbol),
+        marketDataClient.getSpotSymbolRules(symbol),
+      ]);
+      const now = Date.now();
+      const maxQuoteAgeMs = options.maxMarketDataAgeMs ?? 15_000;
+      const priceAge = now - price.observedAt.getTime();
+      const rulesAge = now - rules.observedAt.getTime();
+      if (price.symbol !== symbol || rules.symbol !== symbol || priceAge < 0 || priceAge > maxQuoteAgeMs || rulesAge < 0 || rulesAge > 60_000) {
+        return reply.code(503).send({ error: "market_data_stale" });
+      }
+
+      const quantity = parsed.data.quantity;
+      if (compareDecimalStrings(quantity, rules.minQty) < 0 ||
+          compareDecimalStrings(quantity, rules.maxQty) > 0 ||
+          !isMultipleOfStep(quantity, rules.stepSize)) {
+        return reply.code(400).send({ error: "quantity_outside_exchange_rules" });
+      }
+
+      for (const requestedPrice of [parsed.data.stopLossPrice, parsed.data.takeProfitPrice]) {
+        if (requestedPrice !== undefined &&
+            (compareDecimalStrings(requestedPrice, rules.minPrice) < 0 ||
+             compareDecimalStrings(requestedPrice, rules.maxPrice) > 0 ||
+             !isMultipleOfStep(requestedPrice, rules.tickSize))) {
+          return reply.code(400).send({ error: "price_outside_exchange_rules" });
+        }
+      }
+
+      const notional = multiplyDecimalStrings(price.price, quantity);
+      if (rules.minNotional && compareDecimalStrings(notional, rules.minNotional) < 0) {
+        return reply.code(400).send({ error: "below_minimum_notional" });
+      }
+      const maxNotional = options.maxSimulationNotional ?? "1000";
+      if (compareDecimalStrings(notional, maxNotional) > 0) {
+        return reply.code(400).send({ error: "simulation_order_limit_exceeded" });
+      }
+
+      const counts = await options.databasePool.query<{ open_count: string; exposure: string }>(
+        `SELECT COUNT(*)::text AS open_count,
+           COALESCE(SUM(entry_price * quantity), 0)::text AS exposure
+         FROM simulated_trades WHERE user_id = $1 AND status = 'open'`,
+        [account.id],
+      );
+      const current = counts.rows[0];
+      if (!current) return reply.code(503).send({ error: "service_unavailable" });
+      if (Number(current.open_count) >= (options.maxOpenSimulatedTradesPerUser ?? 10)) {
+        return reply.code(409).send({ error: "maximum_open_simulated_trades_reached" });
+      }
+      const projectedExposure = addDecimalStrings(current.exposure, notional);
+      if (compareDecimalStrings(projectedExposure, options.maxSimulationExposure ?? "5000") > 0) {
+        return reply.code(409).send({ error: "simulation_exposure_limit_exceeded" });
+      }
+
+      const trade = openSimulatedTrade({
+        id: randomUUID(),
+        userId: account.id,
+        symbol,
+        quantity,
+        entryPrice: price.price,
+        stopLossPrice: parsed.data.stopLossPrice ?? null,
+        takeProfitPrice: parsed.data.takeProfitPrice ?? null,
+        trailingStopPercent: parsed.data.trailingStopPercent ?? null,
+        openedAt: price.observedAt,
+      });
+      const saved = await createSimulatedTrade(options.databasePool, trade);
+      return reply.code(201).send({ trade: saved, mode: "simulation", liveOrdersPlaced: false });
+    } catch (error) {
+      if (error instanceof MarketDataError) {
+        if (error.code === "invalid_symbol") return reply.code(400).send({ error: "invalid_symbol" });
+        if (error.code === "symbol_not_found") return reply.code(404).send({ error: "symbol_not_found" });
+        if (error.code === "symbol_not_trading") return reply.code(409).send({ error: "symbol_not_trading" });
+        if (error.code === "rate_limited") return reply.code(429).send({ error: "market_data_rate_limited" });
+        if (error.code === "timeout") return reply.code(504).send({ error: "market_data_timeout" });
+      }
+      if (error instanceof Error && error.name === "TradeValidationError") {
+        return reply.code(400).send({ error: "invalid_simulation_trade" });
+      }
+      request.log.error({ errorName: error instanceof Error ? error.name : "UnknownError" }, "Simulation trade creation failed");
+      return reply.code(500).send({ error: "internal_error" });
     }
   });
 

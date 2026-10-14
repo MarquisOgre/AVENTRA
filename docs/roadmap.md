@@ -34,6 +34,7 @@
 - [ ] Add idempotency keys for signal and trade-creation requests.
 - [ ] Implement signal validation, authenticated provenance, expiry and replay prevention.
 - [ ] Implement simulated fills, partial-fill ledger and order/trade reconciliation.
+- [x] Add authenticated simulation trade create/list API with server-observed quotes, exchange filter validation, stale-data checks and per-user exposure limits.
 - [ ] Connect Telegram commands to authenticated per-user simulation workflows.
 
 ## Phase 5 — Risk management
