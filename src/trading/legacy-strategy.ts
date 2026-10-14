@@ -69,7 +69,7 @@ export interface TrailingStopUpdate {
 }
 
 function scaled(value: string): bigint {
-  const [whole, fraction = ""] = value.split(".");
+  const [whole = "0", fraction = ""] = value.split(".");
   return BigInt(whole) * 1_000_000_000_000n + BigInt(fraction.padEnd(12, "0").slice(0, 12) || "0");
 }
 
