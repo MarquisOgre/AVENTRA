@@ -20,9 +20,9 @@
 ## Phase 3 — Binance public market data
 - [x] Add a validated public spot-price client with timeout and throttling handling.
 - [x] Expose `GET /market-data/spot-price?symbol=BTCUSDT` with safe errors and per-process rate limiting.
-- [ ] Add exchange metadata and symbol filters.
+- [x] Add exchange metadata and spot symbol filters (price tick, quantity step, bounds, and minimum notional where provided).
 - [ ] Add freshness checks, caching, and service-level health metrics.
-- [ ] Add integration/contract tests against recorded exchange responses.
+- [x] Add deterministic contract-style tests for symbol filters and market-data failure handling.
 - [ ] Keep all exchange access public and unauthenticated until adapter contracts are reviewed.
 
 ## Phase 4 — Trading engine
