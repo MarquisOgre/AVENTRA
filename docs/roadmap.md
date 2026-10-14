@@ -4,7 +4,7 @@
 - [x] Establish TypeScript application, HTTP API, and CI workflow.
 - [x] Document architecture and security baseline.
 - [x] Define data model and keep trading in simulation.
-- [ ] Complete the legacy archive audit before reusing any code.
+- [x] Audit legacy archive behavior and document parity/safety mapping in `docs/legacy-feature-map.md`.
 
 ## Phase 2 — Telegram bot and users
 - [x] Bot initialization and safe command routing.
