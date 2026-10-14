@@ -31,10 +31,10 @@ const registerSchema = z.object({
 
 const simulationTradeSchema = z.object({
   symbol: z.string().trim().min(3).max(20).regex(/^[A-Za-z0-9]+$/),
-  quantity: z.string().regex(/^(?:0|[1-9]\\d*)(?:\\.\\d{1,18})?$/),
-  stopLossPrice: z.string().regex(/^(?:0|[1-9]\\d*)(?:\\.\\d{1,18})?$/).optional(),
-  takeProfitPrice: z.string().regex(/^(?:0|[1-9]\\d*)(?:\\.\\d{1,18})?$/).optional(),
-  trailingStopPercent: z.string().regex(/^(?:0|[1-9]\\d*)(?:\\.\\d{1,5})?$/).optional(),
+  quantity: z.string().regex(/^(?:0|[1-9]\d*)(?:\.\d{1,18})?$/),
+  stopLossPrice: z.string().regex(/^(?:0|[1-9]\d*)(?:\.\d{1,18})?$/).optional(),
+  takeProfitPrice: z.string().regex(/^(?:0|[1-9]\d*)(?:\.\d{1,18})?$/).optional(),
+  trailingStopPercent: z.string().regex(/^(?:0|[1-9]\d*)(?:\.\d{1,5})?$/).optional(),
 }).strict();
 
 const simulationStatusSchema = z.enum(["open", "closed"]);

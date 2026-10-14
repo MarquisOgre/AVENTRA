@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, describe, expect, it } from "vitest";
 import { createDatabasePool } from "../db/pool.js";
-import { createSimulatedTrade, evaluatePersistedSimulatedTrade, listSimulatedTrades } from "./repository.js";
+import { createSimulatedTrade, evaluatePersistedSimulatedTrade, listSimulatedTrades, SimulationRiskLimitError } from "./repository.js";
 import { openSimulatedTrade } from "./simulation-engine.js";
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -48,6 +48,14 @@ describe.skipIf(!integrationEnabled)("PostgreSQL simulation-trade repository", (
       await expect(listSimulatedTrades(pool, userId, "closed")).resolves.toMatchObject([
         { id: tradeId, status: "closed", exitReason: "stop_loss" },
       ]);
+
+      const overLimit = openSimulatedTrade({
+        id: randomUUID(), userId, symbol: "BTCUSDT", quantity: "0.01", entryPrice: "100",
+      });
+      await expect(createSimulatedTrade(pool, overLimit, { maxOpenTrades: 10, maxExposure: "0.5" }))
+        .rejects.toBeInstanceOf(SimulationRiskLimitError);
+      await expect(listSimulatedTrades(pool, userId, "open")).resolves.toHaveLength(0);
+
       const events = await pool.query(
         "SELECT event_type FROM simulated_trade_events WHERE trade_id = $1 ORDER BY id",
         [tradeId],

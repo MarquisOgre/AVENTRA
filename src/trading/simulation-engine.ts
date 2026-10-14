@@ -2,7 +2,7 @@ import { z } from "zod";
 
 const decimal = z.string().regex(/^(?:0|[1-9]\d*)(?:\.\d+)?$/);
 const positiveDecimal = decimal.refine((value) => /[1-9]/.test(value), "must be greater than zero");
-const trailingPercent = z.string().regex(/^(?:0|[1-9]\\d*)(?:\\.\\d{1,5})?$/).refine((value) => /[1-9]/.test(value), "must be greater than zero");
+const trailingPercent = z.string().regex(/^(?:0|[1-9]\d*)(?:\.\d{1,5})?$/).refine((value) => /[1-9]/.test(value), "must be greater than zero");
 
 export type ExitReason = "stop_loss" | "take_profit" | "trailing_stop";
 
