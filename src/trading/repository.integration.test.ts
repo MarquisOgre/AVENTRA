@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, describe, expect, it } from "vitest";
 import { createDatabasePool } from "../db/pool.js";
-import { createSimulatedTrade, evaluatePersistedSimulatedTrade, listSimulatedTrades, SimulationRiskLimitError } from "./repository.js";
+import { createSimulatedTrade, evaluatePersistedSimulatedTrade, listSimulatedTrades, SimulationIdempotencyConflictError, SimulationRiskLimitError } from "./repository.js";
 import { openSimulatedTrade } from "./simulation-engine.js";
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -34,9 +34,14 @@ describe.skipIf(!integrationEnabled)("PostgreSQL simulation-trade repository", (
         stopLossPrice: "95",
         takeProfitPrice: "110",
       });
-      await expect(createSimulatedTrade(pool, trade)).resolves.toMatchObject({
+      const limits = { maxOpenTrades: 10, maxExposure: "5000", idempotencyKey: "integration-key-001" };
+      await expect(createSimulatedTrade(pool, trade, limits)).resolves.toMatchObject({
         id: tradeId, userId, symbol: "BTCUSDT", status: "open",
       });
+      await expect(createSimulatedTrade(pool, { ...trade, id: randomUUID(), entryPrice: "101" }, limits))
+        .resolves.toMatchObject({ id: tradeId, entryPrice: "100", status: "open" });
+      await expect(createSimulatedTrade(pool, { ...trade, id: randomUUID(), quantity: "0.02" }, limits))
+        .rejects.toBeInstanceOf(SimulationIdempotencyConflictError);
       await expect(listSimulatedTrades(pool, userId, "open")).resolves.toHaveLength(1);
       await expect(listSimulatedTrades(pool, otherUserId)).resolves.toHaveLength(0);
       await expect(evaluatePersistedSimulatedTrade(pool, otherUserId, tradeId, "94")).resolves.toBeNull();

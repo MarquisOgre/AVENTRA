@@ -31,7 +31,8 @@
 - [x] Port configurable profit target, stop-loss, re-buy threshold/budget/maximum and trailing activation/distance rules as pure simulation logic.
 - [x] Add PostgreSQL tables for simulated positions and append-only trade events.
 - [x] Add transactional PostgreSQL repository for simulation positions and append-only events, with owner-scoped queries and row-locked price evaluation.
-- [ ] Add idempotency keys for signal and trade-creation requests.
+- [x] Require idempotency keys for simulation trade creation and reject key reuse with different request parameters.
+- [ ] Add authenticated signal provenance, expiry and replay prevention.
 - [ ] Implement signal validation, authenticated provenance, expiry and replay prevention.
 - [ ] Implement simulated fills, partial-fill ledger and order/trade reconciliation.
 - [x] Add authenticated simulation trade create/list API with server-observed quotes, exchange filter validation, stale-data checks and per-user exposure limits.

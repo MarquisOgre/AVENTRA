@@ -8,7 +8,7 @@ import { issueTelegramLinkChallenge } from "./users/telegram-linking.js";
 import { setAccountStatusByAdmin } from "./users/admin-actions.js";
 import { randomUUID } from "node:crypto";
 import { BinanceSpotPublicClient, MarketDataError } from "./exchange/binance-public.js";
-import { createSimulatedTrade, listSimulatedTrades, SimulationRiskLimitError } from "./trading/repository.js";
+import { createSimulatedTrade, listSimulatedTrades, SimulationIdempotencyConflictError, SimulationRiskLimitError } from "./trading/repository.js";
 import { openSimulatedTrade } from "./trading/simulation-engine.js";
 import { compareDecimalStrings, isDecimalString, isMultipleOfStep, multiplyDecimalStrings } from "./trading/decimal.js";
 
@@ -152,6 +152,10 @@ export function buildApp(options: AppOptions): FastifyInstance {
     if (!marketDataClient.getSpotSymbolRules) return reply.code(503).send({ error: "market_data_unavailable" });
     const token = bearerToken(request.headers.authorization);
     if (!token) return reply.code(401).send({ error: "unauthorized" });
+    const idempotencyKey = request.headers["idempotency-key"];
+    if (typeof idempotencyKey !== "string" || !/^[A-Za-z0-9._:-]{8,128}$/.test(idempotencyKey)) {
+      return reply.code(400).send({ error: "invalid_idempotency_key" });
+    }
     const parsed = simulationTradeSchema.safeParse(request.body);
     if (!parsed.success || !isDecimalString(parsed.data?.quantity ?? "") || compareDecimalStrings(parsed.data?.quantity ?? "0", "0") <= 0) {
       return reply.code(400).send({ error: "invalid_simulation_trade" });
@@ -215,12 +219,16 @@ export function buildApp(options: AppOptions): FastifyInstance {
       const saved = await createSimulatedTrade(options.databasePool, trade, {
         maxOpenTrades: options.maxOpenSimulatedTradesPerUser ?? 10,
         maxExposure: options.maxSimulationExposure ?? "5000",
+        idempotencyKey,
       });
       return reply.code(201).send({ trade: saved, mode: options.tradingMode, liveOrdersPlaced: false });
     } catch (error) {
       if (error instanceof SimulationRiskLimitError) {
         if (error.code === "max_open_trades") return reply.code(409).send({ error: "maximum_open_simulated_trades_reached" });
         return reply.code(409).send({ error: "simulation_exposure_limit_exceeded" });
+      }
+      if (error instanceof SimulationIdempotencyConflictError) {
+        return reply.code(409).send({ error: "idempotency_key_reused" });
       }
       if (error instanceof MarketDataError) {
         if (error.code === "invalid_symbol") return reply.code(400).send({ error: "invalid_symbol" });

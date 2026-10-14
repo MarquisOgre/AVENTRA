@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { Pool } from "pg";
 import { addDecimalStrings, compareDecimalStrings, multiplyDecimalStrings } from "./decimal.js";
 import { evaluateSimulatedTradeAtPrice, type SimulatedTrade } from "./simulation-engine.js";
@@ -5,6 +6,7 @@ import { evaluateSimulatedTradeAtPrice, type SimulatedTrade } from "./simulation
 export interface SimulationTradeLimits {
   maxOpenTrades: number;
   maxExposure: string;
+  idempotencyKey?: string;
 }
 
 export class SimulationRiskLimitError extends Error {
@@ -12,6 +14,25 @@ export class SimulationRiskLimitError extends Error {
     super(code);
     this.name = "SimulationRiskLimitError";
   }
+}
+
+export class SimulationIdempotencyConflictError extends Error {
+  constructor() {
+    super("idempotency_key_reused");
+    this.name = "SimulationIdempotencyConflictError";
+  }
+}
+
+function requestFingerprint(trade: SimulatedTrade): string {
+  // Entry price is excluded so a retry after a quote changes remains the same request.
+  return createHash("sha256").update(JSON.stringify({
+    userId: trade.userId,
+    symbol: trade.symbol,
+    quantity: trade.quantity,
+    stopLossPrice: trade.stopLossPrice,
+    takeProfitPrice: trade.takeProfitPrice,
+    trailingStopPercent: trade.trailingStopPercent,
+  })).digest("hex");
 }
 
 type TradeRow = {
@@ -65,8 +86,31 @@ export async function createSimulatedTrade(pool: Pool, trade: SimulatedTrade, li
   try {
     await client.query("BEGIN");
     if (limits) {
-      // Serialize this user's limit check + insert to prevent concurrent requests bypassing caps.
+      // Serialize this user's idempotency + limit check + insert to prevent concurrent bypasses.
       await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [trade.userId]);
+      if (limits.idempotencyKey !== undefined) {
+        if (!/^[A-Za-z0-9._:-]{8,128}$/.test(limits.idempotencyKey)) {
+          throw new Error("Invalid simulation idempotency key.");
+        }
+        const existingResult = await client.query<TradeRow & { request_fingerprint: string }>(
+          `SELECT id, user_id, symbol, side, quantity::text, entry_price::text,
+             stop_loss_price::text, take_profit_price::text, trailing_stop_percent::text,
+             high_watermark::text, trailing_stop_price::text, status, exit_price::text,
+             exit_reason, opened_at, closed_at, request_fingerprint
+           FROM simulated_trades WHERE user_id = $1 AND idempotency_key = $2 FOR UPDATE`,
+          [trade.userId, limits.idempotencyKey],
+        );
+        const existing = existingResult.rows[0];
+        if (existing) {
+          if (existing.request_fingerprint !== requestFingerprint(trade)) {
+            throw new SimulationIdempotencyConflictError();
+          }
+          const mapped = toTrade(existing);
+          if (!mapped) throw new Error("Idempotent simulation trade is not available.");
+          await client.query("COMMIT");
+          return mapped;
+        }
+      }
       const totals = await client.query<{ open_count: number; exposure: string }>(
         `SELECT COUNT(*)::int AS open_count,
            COALESCE(SUM(entry_price * quantity), 0)::numeric(38,18)::text AS exposure
@@ -84,8 +128,9 @@ export async function createSimulatedTrade(pool: Pool, trade: SimulatedTrade, li
     const inserted = await client.query<TradeRow>(
       `INSERT INTO simulated_trades
         (id, user_id, symbol, side, quantity, entry_price, stop_loss_price, take_profit_price,
-         trailing_stop_percent, high_watermark, trailing_stop_price, status, opened_at)
-       VALUES ($1, $2, $3, 'long', $4, $5, $6, $7, $8, $9, $10, 'open', $11)
+         trailing_stop_percent, high_watermark, trailing_stop_price, status, opened_at,
+         idempotency_key, request_fingerprint)
+       VALUES ($1, $2, $3, 'long', $4, $5, $6, $7, $8, $9, $10, 'open', $11, $12, $13)
        RETURNING id, user_id, symbol, side, quantity::text, entry_price::text,
          stop_loss_price::text, take_profit_price::text, trailing_stop_percent::text,
          high_watermark::text, trailing_stop_price::text, status, exit_price::text,
@@ -94,6 +139,7 @@ export async function createSimulatedTrade(pool: Pool, trade: SimulatedTrade, li
         trade.id, trade.userId, trade.symbol, trade.quantity, trade.entryPrice,
         trade.stopLossPrice, trade.takeProfitPrice, trade.trailingStopPercent,
         trade.highWatermark, trade.trailingStopPrice, trade.openedAt,
+        limits?.idempotencyKey ?? null, requestFingerprint(trade),
       ],
     );
     await client.query(
