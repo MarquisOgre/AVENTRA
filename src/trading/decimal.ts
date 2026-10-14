@@ -6,6 +6,13 @@ export function isDecimalString(value: string): boolean {
   return DECIMAL.test(value);
 }
 
+export function normalizeDecimalString(value: string): string {
+  if (!isDecimalString(value)) throw new Error("Invalid decimal value.");
+  const [whole = "0", fraction = ""] = value.split(".");
+  const normalizedFraction = fraction.replace(/0+$/, "");
+  return normalizedFraction ? `${whole}.${normalizedFraction}` : whole;
+}
+
 export function toScaledDecimal(value: string): bigint {
   if (!isDecimalString(value)) throw new Error("Invalid decimal value.");
   const [whole = "0", fraction = ""] = value.split(".");

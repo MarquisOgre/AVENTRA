@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDecimalStrings, compareDecimalStrings, isMultipleOfStep, multiplyDecimalStrings } from "./decimal.js";
+import { addDecimalStrings, compareDecimalStrings, isMultipleOfStep, multiplyDecimalStrings, normalizeDecimalString } from "./decimal.js";
 
 describe("fixed-point decimal helpers", () => {
   it("compares values without floating-point conversion", () => {
@@ -11,6 +11,11 @@ describe("fixed-point decimal helpers", () => {
     expect(isMultipleOfStep("0.0015", "0.0005")).toBe(true);
     expect(isMultipleOfStep("0.0016", "0.0005")).toBe(false);
     expect(isMultipleOfStep("1", "0")).toBe(false);
+  });
+
+  it("normalizes database numeric strings for clean API output", () => {
+    expect(normalizeDecimalString("100.000000000000000000")).toBe("100");
+    expect(normalizeDecimalString("0.000000010000000000")).toBe("0.00000001");
   });
 
   it("multiplies and adds decimal strings at fixed precision", () => {

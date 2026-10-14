@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { Pool } from "pg";
-import { addDecimalStrings, compareDecimalStrings, multiplyDecimalStrings } from "./decimal.js";
+import { addDecimalStrings, compareDecimalStrings, multiplyDecimalStrings, normalizeDecimalString } from "./decimal.js";
 import { evaluateSimulatedTradeAtPrice, type SimulatedTrade } from "./simulation-engine.js";
 
 export interface SimulationTradeLimits {
@@ -61,15 +61,15 @@ function toTrade(row: TradeRow): SimulatedTrade | null {
     userId: row.user_id,
     symbol: row.symbol,
     side: "long",
-    quantity: row.quantity,
-    entryPrice: row.entry_price,
-    stopLossPrice: row.stop_loss_price,
-    takeProfitPrice: row.take_profit_price,
-    trailingStopPercent: row.trailing_stop_percent,
-    highWatermark: row.high_watermark,
-    trailingStopPrice: row.trailing_stop_price,
+    quantity: normalizeDecimalString(row.quantity),
+    entryPrice: normalizeDecimalString(row.entry_price),
+    stopLossPrice: row.stop_loss_price === null ? null : normalizeDecimalString(row.stop_loss_price),
+    takeProfitPrice: row.take_profit_price === null ? null : normalizeDecimalString(row.take_profit_price),
+    trailingStopPercent: row.trailing_stop_percent === null ? null : normalizeDecimalString(row.trailing_stop_percent),
+    highWatermark: normalizeDecimalString(row.high_watermark),
+    trailingStopPrice: row.trailing_stop_price === null ? null : normalizeDecimalString(row.trailing_stop_price),
     status: row.status,
-    exitPrice: row.exit_price,
+    exitPrice: row.exit_price === null ? null : normalizeDecimalString(row.exit_price),
     exitReason: row.exit_reason as SimulatedTrade["exitReason"],
     openedAt: new Date(row.opened_at).toISOString(),
     closedAt: row.closed_at ? new Date(row.closed_at).toISOString() : null,
