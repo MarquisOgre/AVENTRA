@@ -12,7 +12,7 @@ export interface AppOptions {
   appName: string;
   tradingMode: "simulation" | "paper" | "live";
   databasePool?: Pool;
-  marketDataClient?: Pick<BinanceSpotPublicClient, "getSpotPrice" | "getSpotSymbolRules">;
+  marketDataClient?: Pick<BinanceSpotPublicClient, "getSpotPrice"> & Partial<Pick<BinanceSpotPublicClient, "getSpotSymbolRules">>;
 }
 
 const registerSchema = z.object({
@@ -56,6 +56,8 @@ export function buildApp(options: AppOptions): FastifyInstance {
   }, async (request, reply) => {
     const query = z.object({ symbol: z.string().min(3).max(20) }).safeParse(request.query);
     if (!query.success) return reply.code(400).send({ error: "invalid_symbol" });
+
+    if (!marketDataClient.getSpotSymbolRules) return reply.code(503).send({ error: "market_data_unavailable" });
 
     try {
       const rules = await marketDataClient.getSpotSymbolRules(query.data.symbol);
