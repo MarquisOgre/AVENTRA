@@ -75,7 +75,7 @@ function scaled(value: string): bigint {
 
 function decimal(value: bigint): string {
   const whole = value / 1_000_000_000_000_000_000n;
-  const fraction = (value % 1_000_000_000_000_000_000n).toString().padStart(12, "0").replace(/0+$/, "");
+  const fraction = (value % 1_000_000_000_000_000_000n).toString().padStart(18, "0").replace(/0+$/, "");
   return fraction ? `${whole}.${fraction}` : whole.toString();
 }
 

@@ -10,7 +10,7 @@ import { randomUUID } from "node:crypto";
 import { BinanceSpotPublicClient, MarketDataError } from "./exchange/binance-public.js";
 import { createSimulatedTrade, listSimulatedTrades, SimulationRiskLimitError } from "./trading/repository.js";
 import { openSimulatedTrade } from "./trading/simulation-engine.js";
-import { addDecimalStrings, compareDecimalStrings, isDecimalString, isMultipleOfStep, multiplyDecimalStrings } from "./trading/decimal.js";
+import { compareDecimalStrings, isDecimalString, isMultipleOfStep, multiplyDecimalStrings } from "./trading/decimal.js";
 
 export interface AppOptions {
   appName: string;

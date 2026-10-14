@@ -30,6 +30,17 @@ describe("legacy strategy parity with corrected safety semantics", () => {
     expect(evaluateRebuy({ ...base, completedRebuys: 0, availableQuoteBalance: "9" })).toMatchObject({ shouldBuy: false, reason: "insufficient_quote_balance" });
   });
 
+  it("preserves tiny price precision in the trailing-stop calculation", () => {
+    const update = updateTrailingStop(
+      { activated: false, highWatermark: "0.000000000000000010", stopPrice: null },
+      "0.000000000000000010",
+      "0.000000000000000020",
+      "0",
+      "10",
+    );
+    expect(update.state.stopPrice).toBe("0.000000000000000018");
+  });
+
   it("activates trailing stop after threshold and never lowers the stop", () => {
     const initial = { activated: false, highWatermark: "100", stopPrice: null };
     const before = updateTrailingStop(initial, "100", "101.9", "2", "1");
