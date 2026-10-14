@@ -71,7 +71,7 @@ function compareDecimal(left: string, right: string): number {
 }
 
 function decimalToScaled(value: string, scaleDigits = 12): bigint {
-  const [whole, fraction = ""] = value.split(".");
+  const [whole = "0", fraction = ""] = value.split(".");
   const scaledFraction = fraction.padEnd(scaleDigits, "0").slice(0, scaleDigits);
   return BigInt(whole) * 10n ** BigInt(scaleDigits) + BigInt(scaledFraction ?? "0");
 }
