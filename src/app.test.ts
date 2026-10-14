@@ -47,7 +47,7 @@ describe("AVENTRA API foundation", () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({
       symbol: "BTCUSDT",
-      price: 65000,
+      price: "65000",
       source: "binance",
       observedAt: observedAt.toISOString(),
     });
