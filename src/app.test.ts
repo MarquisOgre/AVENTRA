@@ -9,7 +9,7 @@ afterEach(async () => {
   await Promise.all(apps.splice(0).map((app) => app.close()));
 });
 
-function makeApp(databasePool?: Pool, marketDataClient?: Pick<BinanceSpotPublicClient, "getSpotPrice">) {
+function makeApp(databasePool?: Pool, marketDataClient?: Pick<BinanceSpotPublicClient, "getSpotPrice"> & Partial<Pick<BinanceSpotPublicClient, "getSpotSymbolRules">>) {
   const app = buildApp({
     appName: "AVENTRA",
     tradingMode: "simulation",
@@ -52,6 +52,37 @@ describe("AVENTRA API foundation", () => {
       observedAt: observedAt.toISOString(),
     });
     expect(getSpotPrice).toHaveBeenCalledWith("btcusdt");
+  });
+
+  it("serves validated symbol rules from the market-data client", async () => {
+    const getSpotPrice = vi.fn();
+    const getSpotSymbolRules = vi.fn().mockResolvedValue({
+      symbol: "BTCUSDT",
+      baseAsset: "BTC",
+      quoteAsset: "USDT",
+      status: "TRADING",
+      tickSize: "0.01000000",
+      minPrice: "0.01000000",
+      maxPrice: "1000000.00000000",
+      stepSize: "0.00001000",
+      minQty: "0.00001000",
+      maxQty: "9000.00000000",
+      minNotional: "5.00000000",
+      source: "binance",
+      observedAt: new Date("2026-10-13T00:00:00.000Z"),
+    });
+    const response = await makeApp(undefined, { getSpotPrice, getSpotSymbolRules }).inject({
+      method: "GET",
+      url: "/market-data/symbol-rules?symbol=BTCUSDT",
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      symbol: "BTCUSDT",
+      tickSize: "0.01000000",
+      stepSize: "0.00001000",
+      minNotional: "5.00000000",
+    });
+    expect(getSpotSymbolRules).toHaveBeenCalledWith("BTCUSDT");
   });
 
   it("maps upstream market-data failures to a safe service response", async () => {
