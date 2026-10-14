@@ -37,7 +37,7 @@ The exact database migration/ORM and background job approach will be confirmed d
 - Account registration, scrypt password hashing, bearer sessions, logout, and authenticated Telegram linking-code issuance are implemented.
 - Admin-only account activation/suspension and one-time operator bootstrap are implemented, with protection against suspending the last active administrator.
 - CI includes dependency auditing, type-checking, production build, database migrations, and PostgreSQL-backed authentication/linking integration tests.
-- Binance public spot-price retrieval is implemented through a validated client and a rate-limited API endpoint. Exchange metadata, caching, trading simulation, and order execution are not implemented yet.
+- Binance public spot-price retrieval and spot-symbol trading filters are implemented through validated clients and rate-limited API endpoints. Caching, freshness checks, trading simulation, and order execution are not implemented yet.
 - Live trading remains disabled.
 
 See `docs/operator-runbook.md` for local setup and initial administrator provisioning. Never run migrations or bootstrap commands against production without a reviewed deployment procedure.
