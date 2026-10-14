@@ -35,6 +35,7 @@ Only after the intended account has been registered:
 This is an operator-only command, not an HTTP endpoint. It refuses to run if any administrator role already exists. Do not run it against a shared or production database until the deployment procedure has been reviewed.
 
 ## Public market data
+- `GET /market-data/symbol-rules?symbol=BTCUSDT` returns validated Binance Spot trading filters, including price tick size, quantity step size, quantity bounds, and minimum notional when provided. These filters are reference data, not a complete risk check or permission to place orders.
 - `GET /market-data/spot-price?symbol=BTCUSDT` returns the latest public spot price from Binance. The price is returned as a decimal string to preserve exchange precision. It makes an unauthenticated read-only request and does not place orders.
 - The endpoint is rate-limited per process. Upstream throttling, timeout, and failure responses are normalized; they do not expose raw exchange response bodies.
 
