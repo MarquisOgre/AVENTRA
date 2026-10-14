@@ -43,9 +43,13 @@ export function evaluateRebuy(check: RebuyCheck): RebuyDecision {
   }
   if (check.completedRebuys >= check.maxRebuys) return { shouldBuy: false, reason: "max_rebuys_reached" };
 
-  const threshold = Number(check.lastBuyPrice) * (1 - Number(check.dropPercent) / 100);
-  if (Number(check.currentPrice) > threshold) return { shouldBuy: false, reason: "price_not_low_enough" };
-  if (Number(check.availableQuoteBalance) < Number(check.quoteAmount)) {
+  const scale = 1_000_000_000_000n;
+  const lastPrice = scaled(check.lastBuyPrice);
+  const currentPrice = scaled(check.currentPrice);
+  const drop = scaled(check.dropPercent);
+  const threshold = lastPrice - (lastPrice * drop) / (100n * scale);
+  if (currentPrice > threshold) return { shouldBuy: false, reason: "price_not_low_enough" };
+  if (scaled(check.availableQuoteBalance) < scaled(check.quoteAmount)) {
     return { shouldBuy: false, reason: "insufficient_quote_balance" };
   }
   return { shouldBuy: true, reason: "rebuy_threshold_reached", quoteAmount: check.quoteAmount };
@@ -89,7 +93,10 @@ export function updateTrailingStop(
   activationPercent: string,
   distancePercent: string,
 ): TrailingStopUpdate {
-  const valid = [entryPrice, currentPrice, activationPercent, distancePercent].every((value) => positiveDecimal.safeParse(value).success);
+  const valid = positiveDecimal.safeParse(entryPrice).success &&
+    positiveDecimal.safeParse(currentPrice).success &&
+    percent.safeParse(activationPercent).success &&
+    positiveDecimal.safeParse(distancePercent).success;
   if (!valid || Number(activationPercent) > 1000 || Number(distancePercent) >= 100) {
     throw new Error("Invalid trailing-stop input.");
   }
