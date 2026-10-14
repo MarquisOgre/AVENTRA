@@ -11,8 +11,8 @@ This document records the intended behavior found during the review of the suppl
 | Buy/sell signal workflows | Versioned signal validation and idempotent simulation orders | Authenticated signal source, expiry, replay prevention and duplicate-request protection |
 | Buy orders and position tracking | Deterministic spot simulation engine, then durable order/position repository | Long-only spot semantics initially; explicit order/position state transitions |
 | Profit targets and stop-loss | Exit rules evaluated against fresh quotes | Stop/target trigger precedence must be deterministic and tested |
-| Trailing stops | High-water mark and derived trailing threshold | Never loosen a long position's trailing stop when price falls |
-| Recurring purchases | Scheduled purchase intents | Per-user budget, frequency, exposure and emergency-stop limits |
+| Trailing stops | High-water mark, activation threshold and trailing distance; implemented in `src/trading/legacy-strategy.ts` | Never loosen a long position's trailing stop when price falls; legacy start/follow coupling is normalized to explicit activation/distance settings |
+| Recurring purchases | Re-buy trigger and validated strategy settings in `src/trading/legacy-strategy.ts`; scheduler still to come | Rebuy only after configured price drop, within configured maximum count and available quote balance |
 | Partial fills | Fill ledger and remaining-quantity accounting | Quantity filled must never exceed requested quantity; exact decimal accounting |
 | Reports and performance | Fee-aware realized/unrealized P&L and trade history | Derive metrics from persisted fills; don't rely on undefined or stale fields |
 | Memberships / paid access | Entitlements and subscription/billing module after core trading is stable | Server-enforced entitlements; no client-side-only access decisions |
@@ -33,7 +33,7 @@ This document records the intended behavior found during the review of the suppl
 ## Delivery order
 
 1. Preserve the existing foundation and public market-data adapter.
-2. Build and test a deterministic simulation engine with no exchange credentials and no order-submission path.
+2. Build and test a deterministic simulation engine and port the original profit-target, stop-loss, re-buy and trailing-stop configuration concepts without the old exchange-order side effects.
 3. Persist signals, orders, fills, positions, risk limits and idempotency keys in PostgreSQL.
 4. Add Telegram commands that operate only on the authenticated linked account and simulation/paper mode.
 5. Add recurring purchases, trailing stops, reports, memberships and localization.
