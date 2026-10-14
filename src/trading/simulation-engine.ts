@@ -55,7 +55,7 @@ export class TradeValidationError extends Error {
 
 function compareDecimal(left: string, right: string): number {
   const normalize = (value: string) => {
-    const [whole, fraction = ""] = value.split(".");
+    const [whole = "0", fraction = ""] = value.split(".");
     const trimmedWhole = whole.replace(/^0+(?=\d)/, "");
     const trimmedFraction = fraction.replace(/0+$/, "");
     return { whole: trimmedWhole, fraction: trimmedFraction };
@@ -73,7 +73,7 @@ function compareDecimal(left: string, right: string): number {
 function decimalToScaled(value: string, scaleDigits = 12): bigint {
   const [whole, fraction = ""] = value.split(".");
   const scaledFraction = fraction.padEnd(scaleDigits, "0").slice(0, scaleDigits);
-  return BigInt(whole) * 10n ** BigInt(scaleDigits) + BigInt(scaledFraction || "0");
+  return BigInt(whole) * 10n ** BigInt(scaleDigits) + BigInt(scaledFraction ?? "0");
 }
 
 function scaledToDecimal(value: bigint, scaleDigits = 12): string {
