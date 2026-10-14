@@ -26,10 +26,14 @@
 - [ ] Keep all exchange access public and unauthenticated until adapter contracts are reviewed.
 
 ## Phase 4 — Trading engine
-- [ ] Signal validation and replay prevention.
-- [ ] Order/trade state machine.
-- [ ] Partial fills and duplicate-request prevention.
-- [ ] Durable persistence and reconciliation.
+- [x] Audit the supplied `oldApproach.rar` source as a behavior reference; map legacy commands and safety corrections.
+- [x] Add deterministic long-only simulation trade lifecycle with stop-loss, profit-target and trailing-stop exits.
+- [x] Port configurable profit target, stop-loss, re-buy threshold/budget/maximum and trailing activation/distance rules as pure simulation logic.
+- [x] Add PostgreSQL tables for simulated positions and append-only trade events.
+- [ ] Persist the simulation engine through transactional repositories and idempotency keys.
+- [ ] Implement signal validation, authenticated provenance, expiry and replay prevention.
+- [ ] Implement simulated fills, partial-fill ledger and order/trade reconciliation.
+- [ ] Connect Telegram commands to authenticated per-user simulation workflows.
 
 ## Phase 5 — Risk management
 - [ ] Per-order sizing limits.
