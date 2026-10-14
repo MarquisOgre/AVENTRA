@@ -30,7 +30,8 @@
 - [x] Add deterministic long-only simulation trade lifecycle with stop-loss, profit-target and trailing-stop exits.
 - [x] Port configurable profit target, stop-loss, re-buy threshold/budget/maximum and trailing activation/distance rules as pure simulation logic.
 - [x] Add PostgreSQL tables for simulated positions and append-only trade events.
-- [ ] Persist the simulation engine through transactional repositories and idempotency keys.
+- [x] Add transactional PostgreSQL repository for simulation positions and append-only events, with owner-scoped queries and row-locked price evaluation.
+- [ ] Add idempotency keys for signal and trade-creation requests.
 - [ ] Implement signal validation, authenticated provenance, expiry and replay prevention.
 - [ ] Implement simulated fills, partial-fill ledger and order/trade reconciliation.
 - [ ] Connect Telegram commands to authenticated per-user simulation workflows.
