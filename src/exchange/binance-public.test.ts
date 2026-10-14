@@ -53,6 +53,55 @@ describe("Binance public spot client", () => {
     await expect(mismatched.getSpotPrice("BTCUSDT")).rejects.toMatchObject({ code: "invalid_response" });
   });
 
+  it("retrieves validated spot trading filters without converting decimals to floating point", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({
+      symbols: [{
+        symbol: "BTCUSDT",
+        status: "TRADING",
+        baseAsset: "BTC",
+        quoteAsset: "USDT",
+        isSpotTradingAllowed: true,
+        filters: [
+          { filterType: "PRICE_FILTER", minPrice: "0.01000000", maxPrice: "1000000.00000000", tickSize: "0.01000000" },
+          { filterType: "LOT_SIZE", minQty: "0.00001000", maxQty: "9000.00000000", stepSize: "0.00001000" },
+          { filterType: "MIN_NOTIONAL", minNotional: "5.00000000", applyToMarket: true, avgPriceMins: 5 },
+        ],
+      }],
+    }));
+    const client = new BinanceSpotPublicClient({ fetchImpl });
+    await expect(client.getSpotSymbolRules("btcusdt")).resolves.toMatchObject({
+      symbol: "BTCUSDT",
+      baseAsset: "BTC",
+      quoteAsset: "USDT",
+      status: "TRADING",
+      tickSize: "0.01000000",
+      stepSize: "0.00001000",
+      minQty: "0.00001000",
+      minNotional: "5.00000000",
+    });
+    const [url] = fetchImpl.mock.calls[0] as [URL, RequestInit];
+    expect(url.pathname).toBe("/api/v3/exchangeInfo");
+    expect(url.searchParams.get("symbol")).toBe("BTCUSDT");
+  });
+
+  it("rejects symbols that are not trading", async () => {
+    const client = new BinanceSpotPublicClient({
+      fetchImpl: vi.fn().mockResolvedValue(jsonResponse({
+        symbols: [{
+          symbol: "BTCUSDT",
+          status: "BREAK",
+          baseAsset: "BTC",
+          quoteAsset: "USDT",
+          filters: [
+            { filterType: "PRICE_FILTER", minPrice: "0.01", maxPrice: "1000000", tickSize: "0.01" },
+            { filterType: "LOT_SIZE", minQty: "0.00001", maxQty: "9000", stepSize: "0.00001" },
+          ],
+        }],
+      })),
+    });
+    await expect(client.getSpotSymbolRules("BTCUSDT")).rejects.toMatchObject({ code: "symbol_not_trading" });
+  });
+
   it("rejects insecure remote base URLs", () => {
     expect(() => new BinanceSpotPublicClient({ baseUrl: "http://example.com" })).toThrow("HTTPS");
   });
