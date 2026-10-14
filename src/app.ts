@@ -12,7 +12,7 @@ export interface AppOptions {
   appName: string;
   tradingMode: "simulation" | "paper" | "live";
   databasePool?: Pool;
-  marketDataClient?: Pick<BinanceSpotPublicClient, "getSpotPrice">;
+  marketDataClient?: Pick<BinanceSpotPublicClient, "getSpotPrice" | "getSpotSymbolRules">;
 }
 
 const registerSchema = z.object({
@@ -50,6 +50,36 @@ export function buildApp(options: AppOptions): FastifyInstance {
     tradingMode: options.tradingMode,
     liveTradingImplemented: false,
   }));
+
+  app.get("/market-data/symbol-rules", {
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+  }, async (request, reply) => {
+    const query = z.object({ symbol: z.string().min(3).max(20) }).safeParse(request.query);
+    if (!query.success) return reply.code(400).send({ error: "invalid_symbol" });
+
+    try {
+      const rules = await marketDataClient.getSpotSymbolRules(query.data.symbol);
+      return reply.code(200).send(rules);
+    } catch (error) {
+      if (error instanceof MarketDataError && error.code === "invalid_symbol") {
+        return reply.code(400).send({ error: "invalid_symbol" });
+      }
+      if (error instanceof MarketDataError && error.code === "symbol_not_found") {
+        return reply.code(404).send({ error: "symbol_not_found" });
+      }
+      if (error instanceof MarketDataError && error.code === "symbol_not_trading") {
+        return reply.code(409).send({ error: "symbol_not_trading" });
+      }
+      if (error instanceof MarketDataError && error.code === "rate_limited") {
+        return reply.code(429).send({ error: "market_data_rate_limited" });
+      }
+      if (error instanceof MarketDataError && error.code === "timeout") {
+        return reply.code(504).send({ error: "market_data_timeout" });
+      }
+      request.log.error({ errorCode: error instanceof MarketDataError ? error.code : "unknown" }, "Symbol-rules request failed");
+      return reply.code(503).send({ error: "market_data_unavailable" });
+    }
+  });
 
   app.get("/market-data/spot-price", {
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
