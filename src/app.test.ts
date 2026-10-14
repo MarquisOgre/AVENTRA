@@ -182,7 +182,6 @@ describe("AVENTRA API foundation", () => {
   });
 });
 
-import { afterEach, describe, expect, it, vi } from "vitest";
 import { compareDecimalStrings, isMultipleOfStep, multiplyDecimalStrings } from "./trading/decimal.js";
 
 describe("simulation decimal rules", () => {
