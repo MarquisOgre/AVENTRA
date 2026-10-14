@@ -43,7 +43,7 @@ export function evaluateRebuy(check: RebuyCheck): RebuyDecision {
   }
   if (check.completedRebuys >= check.maxRebuys) return { shouldBuy: false, reason: "max_rebuys_reached" };
 
-  const scale = 1_000_000_000_000n;
+  const scale = 1_000_000_000_000_000_000n;
   const lastPrice = scaled(check.lastBuyPrice);
   const currentPrice = scaled(check.currentPrice);
   const drop = scaled(check.dropPercent);
@@ -70,12 +70,12 @@ export interface TrailingStopUpdate {
 
 function scaled(value: string): bigint {
   const [whole = "0", fraction = ""] = value.split(".");
-  return BigInt(whole) * 1_000_000_000_000n + BigInt(fraction.padEnd(12, "0").slice(0, 12) || "0");
+  return BigInt(whole) * 1_000_000_000_000_000_000n + BigInt(fraction.padEnd(18, "0").slice(0, 18) || "0");
 }
 
 function decimal(value: bigint): string {
-  const whole = value / 1_000_000_000_000n;
-  const fraction = (value % 1_000_000_000_000n).toString().padStart(12, "0").replace(/0+$/, "");
+  const whole = value / 1_000_000_000_000_000_000n;
+  const fraction = (value % 1_000_000_000_000_000_000n).toString().padStart(12, "0").replace(/0+$/, "");
   return fraction ? `${whole}.${fraction}` : whole.toString();
 }
 
@@ -104,7 +104,7 @@ export function updateTrailingStop(
   const entry = scaled(entryPrice);
   const price = scaled(currentPrice);
   const activation = scaled(activationPercent);
-  const activationPrice = entry + (entry * activation) / (100n * 1_000_000_000_000n);
+  const activationPrice = entry + (entry * activation) / (100n * 1_000_000_000_000_000_000n);
   const activatedNow = !state.activated && price >= activationPrice;
   const activated = state.activated || activatedNow;
   const highWatermark = compare(currentPrice, state.highWatermark) > 0 ? currentPrice : state.highWatermark;
@@ -113,7 +113,7 @@ export function updateTrailingStop(
   if (activated) {
     const high = scaled(highWatermark);
     const distance = scaled(distancePercent);
-    const candidate = decimal(high - (high * distance) / (100n * 1_000_000_000_000n));
+    const candidate = decimal(high - (high * distance) / (100n * 1_000_000_000_000_000_000n));
     if (!stopPrice || compare(candidate, stopPrice) > 0) stopPrice = candidate;
   }
 

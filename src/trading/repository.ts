@@ -1,5 +1,18 @@
 import type { Pool } from "pg";
+import { addDecimalStrings, compareDecimalStrings, multiplyDecimalStrings } from "./decimal.js";
 import { evaluateSimulatedTradeAtPrice, type SimulatedTrade } from "./simulation-engine.js";
+
+export interface SimulationTradeLimits {
+  maxOpenTrades: number;
+  maxExposure: string;
+}
+
+export class SimulationRiskLimitError extends Error {
+  constructor(public readonly code: "max_open_trades" | "max_exposure") {
+    super(code);
+    this.name = "SimulationRiskLimitError";
+  }
+}
 
 type TradeRow = {
   id: string;
@@ -43,7 +56,7 @@ function toTrade(row: TradeRow): SimulatedTrade | null {
 }
 
 /** Persists a validated simulation position and its opening event atomically. */
-export async function createSimulatedTrade(pool: Pool, trade: SimulatedTrade): Promise<SimulatedTrade> {
+export async function createSimulatedTrade(pool: Pool, trade: SimulatedTrade, limits?: SimulationTradeLimits): Promise<SimulatedTrade> {
   if (trade.status !== "open" || trade.exitPrice !== null || trade.closedAt !== null) {
     throw new Error("Only a newly opened simulated trade can be inserted.");
   }
@@ -51,6 +64,23 @@ export async function createSimulatedTrade(pool: Pool, trade: SimulatedTrade): P
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+    if (limits) {
+      // Serialize this user's limit check + insert to prevent concurrent requests bypassing caps.
+      await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [trade.userId]);
+      const totals = await client.query<{ open_count: number; exposure: string }>(
+        `SELECT COUNT(*)::int AS open_count,
+           COALESCE(SUM(entry_price * quantity), 0)::text AS exposure
+         FROM simulated_trades WHERE user_id = $1 AND status = 'open'`,
+        [trade.userId],
+      );
+      const current = totals.rows[0];
+      if (!current) throw new Error("Unable to read simulation risk totals.");
+      if (current.open_count >= limits.maxOpenTrades) throw new SimulationRiskLimitError("max_open_trades");
+      const projectedExposure = addDecimalStrings(current.exposure, multiplyDecimalStrings(trade.entryPrice, trade.quantity));
+      if (compareDecimalStrings(projectedExposure, limits.maxExposure) > 0) {
+        throw new SimulationRiskLimitError("max_exposure");
+      }
+    }
     const inserted = await client.query<TradeRow>(
       `INSERT INTO simulated_trades
         (id, user_id, symbol, side, quantity, entry_price, stop_loss_price, take_profit_price,

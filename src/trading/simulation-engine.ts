@@ -70,13 +70,13 @@ function compareDecimal(left: string, right: string): number {
   return af === bf ? 0 : af > bf ? 1 : -1;
 }
 
-function decimalToScaled(value: string, scaleDigits = 12): bigint {
+function decimalToScaled(value: string, scaleDigits = 18): bigint {
   const [whole = "0", fraction = ""] = value.split(".");
   const scaledFraction = fraction.padEnd(scaleDigits, "0").slice(0, scaleDigits);
   return BigInt(whole) * 10n ** BigInt(scaleDigits) + BigInt(scaledFraction ?? "0");
 }
 
-function scaledToDecimal(value: bigint, scaleDigits = 12): string {
+function scaledToDecimal(value: bigint, scaleDigits = 18): string {
   const base = 10n ** BigInt(scaleDigits);
   const whole = value / base;
   const fraction = (value % base).toString().padStart(scaleDigits, "0").replace(/0+$/, "");
@@ -84,7 +84,7 @@ function scaledToDecimal(value: bigint, scaleDigits = 12): string {
 }
 
 function deriveTrailingStop(highWatermark: string, percent: string): string {
-  const scale = 10n ** 12n;
+  const scale = 10n ** 18n;
   const high = decimalToScaled(highWatermark);
   const pct = decimalToScaled(percent);
   // Percent is expressed as a percentage (e.g. "2.5" means 2.5%).

@@ -8,7 +8,7 @@ import { issueTelegramLinkChallenge } from "./users/telegram-linking.js";
 import { setAccountStatusByAdmin } from "./users/admin-actions.js";
 import { randomUUID } from "node:crypto";
 import { BinanceSpotPublicClient, MarketDataError } from "./exchange/binance-public.js";
-import { createSimulatedTrade, listSimulatedTrades } from "./trading/repository.js";
+import { createSimulatedTrade, listSimulatedTrades, SimulationRiskLimitError } from "./trading/repository.js";
 import { openSimulatedTrade } from "./trading/simulation-engine.js";
 import { addDecimalStrings, compareDecimalStrings, isDecimalString, isMultipleOfStep, multiplyDecimalStrings } from "./trading/decimal.js";
 
@@ -191,6 +191,7 @@ export function buildApp(options: AppOptions): FastifyInstance {
         }
       }
 
+      if (!isDecimalString(price.price)) return reply.code(503).send({ error: "market_data_invalid" });
       const notional = multiplyDecimalStrings(price.price, quantity);
       if (rules.minNotional && compareDecimalStrings(notional, rules.minNotional) < 0) {
         return reply.code(400).send({ error: "below_minimum_notional" });
@@ -198,22 +199,6 @@ export function buildApp(options: AppOptions): FastifyInstance {
       const maxNotional = options.maxSimulationNotional ?? "1000";
       if (compareDecimalStrings(notional, maxNotional) > 0) {
         return reply.code(400).send({ error: "simulation_order_limit_exceeded" });
-      }
-
-      const counts = await options.databasePool.query<{ open_count: string; exposure: string }>(
-        `SELECT COUNT(*)::text AS open_count,
-           COALESCE(SUM(entry_price * quantity), 0)::text AS exposure
-         FROM simulated_trades WHERE user_id = $1 AND status = 'open'`,
-        [account.id],
-      );
-      const current = counts.rows[0];
-      if (!current) return reply.code(503).send({ error: "service_unavailable" });
-      if (Number(current.open_count) >= (options.maxOpenSimulatedTradesPerUser ?? 10)) {
-        return reply.code(409).send({ error: "maximum_open_simulated_trades_reached" });
-      }
-      const projectedExposure = addDecimalStrings(current.exposure, notional);
-      if (compareDecimalStrings(projectedExposure, options.maxSimulationExposure ?? "5000") > 0) {
-        return reply.code(409).send({ error: "simulation_exposure_limit_exceeded" });
       }
 
       const trade = openSimulatedTrade({
@@ -227,9 +212,16 @@ export function buildApp(options: AppOptions): FastifyInstance {
         trailingStopPercent: parsed.data.trailingStopPercent ?? null,
         openedAt: price.observedAt,
       });
-      const saved = await createSimulatedTrade(options.databasePool, trade);
+      const saved = await createSimulatedTrade(options.databasePool, trade, {
+        maxOpenTrades: options.maxOpenSimulatedTradesPerUser ?? 10,
+        maxExposure: options.maxSimulationExposure ?? "5000",
+      });
       return reply.code(201).send({ trade: saved, mode: "simulation", liveOrdersPlaced: false });
     } catch (error) {
+      if (error instanceof SimulationRiskLimitError) {
+        if (error.code === "max_open_trades") return reply.code(409).send({ error: "maximum_open_simulated_trades_reached" });
+        return reply.code(409).send({ error: "simulation_exposure_limit_exceeded" });
+      }
       if (error instanceof MarketDataError) {
         if (error.code === "invalid_symbol") return reply.code(400).send({ error: "invalid_symbol" });
         if (error.code === "symbol_not_found") return reply.code(404).send({ error: "symbol_not_found" });
