@@ -37,6 +37,7 @@
 - [ ] Implement simulated fills, partial-fill ledger and order/trade reconciliation.
 - [x] Add authenticated simulation trade create/list API with server-observed quotes, exchange filter validation, stale-data checks and per-user exposure limits.
 - [x] Add `/trades` Telegram command for linked, active users to view their own open simulation positions.
+- [x] Add a non-overlapping simulation monitor that reuses one Binance public quote per symbol and persists stop/target/trailing-stop updates; worker is disabled outside simulation mode.
 - [ ] Add Telegram per-user/per-chat rate limits and authenticated simulation trade-creation workflow.
 
 ## Phase 5 — Risk management

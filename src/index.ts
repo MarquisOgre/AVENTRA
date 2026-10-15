@@ -4,6 +4,8 @@ import { buildApp } from "./app.js";
 import { createTelegramBot } from "./bot/create-bot.js";
 import { appConfig } from "./config.js";
 import { createDatabasePool } from "./db/pool.js";
+import { BinanceSpotPublicClient } from "./exchange/binance-public.js";
+import { startSimulationMonitor } from "./trading/monitor.js";
 
 const logger = pino({
   level: appConfig.logLevel,
@@ -36,6 +38,10 @@ const bot = appConfig.telegramBotToken
     })
   : undefined;
 
+const stopSimulationMonitor = databasePool && appConfig.tradingMode === "simulation"
+  ? startSimulationMonitor({ pool: databasePool, marketDataClient: new BinanceSpotPublicClient(), logger, intervalMs: 10_000 })
+  : undefined;
+
 let shuttingDown = false;
 
 async function shutdown(signal: string): Promise<void> {
@@ -43,6 +49,7 @@ async function shutdown(signal: string): Promise<void> {
   shuttingDown = true;
   logger.info({ signal }, "Shutting down AVENTRA");
   bot?.stop();
+  stopSimulationMonitor?.();
   await app.close();
   await databasePool?.end();
 }

@@ -253,3 +253,18 @@ export async function evaluatePersistedSimulatedTrade(
     client.release();
   }
 }
+
+
+/** Internal worker query: open positions across users; never expose this through user-facing APIs. */
+export async function listOpenSimulatedTradesForMonitor(pool: Pool): Promise<SimulatedTrade[]> {
+  const result = await pool.query<TradeRow>(
+    `SELECT id, user_id, symbol, side, quantity::text, entry_price::text,
+       stop_loss_price::text, take_profit_price::text, trailing_stop_percent::text,
+       high_watermark::text, trailing_stop_price::text, status, exit_price::text,
+       exit_reason, opened_at, closed_at
+     FROM simulated_trades
+     WHERE status = 'open'
+     ORDER BY symbol ASC, opened_at ASC, id ASC`,
+  );
+  return result.rows.map(toTrade).filter((trade): trade is SimulatedTrade => trade !== null);
+}
